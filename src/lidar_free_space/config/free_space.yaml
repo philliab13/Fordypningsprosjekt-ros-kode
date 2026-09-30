@@ -1,0 +1,19 @@
+lidar_free_space:
+  ros__parameters:
+    use_sim_time: true
+    input_topic: /wamv/sensors/lidars/lidar_wamv_sensor/points
+    target_frame: gymkhana_task
+    base_frame: wamv/wamv/base_link
+    enable_assumed_clear: true
+    assumed_clear_range: 100.0
+    scan_topic: /wamv/sensors/lidars/lidar_wamv_sensor/scan
+    water_level: 0.0
+    min_range: 0.1
+    max_range: 130.0
+    min_obstacle_height: 0.15
+    max_obstacle_height: 3.0
+    angular_resolution: 1.0
+    # Axis-aligned box in base_frame; tune for the actual vessel configuration.
+    self_mask_min: [-3.2, -1.8, -1.0]
+    self_mask_max: [3.2, 1.8, 2.5]
+    marker_lifetime: 0.5
