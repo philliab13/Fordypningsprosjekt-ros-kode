@@ -39,7 +39,7 @@ DEFAULTS = dict(
     num_stixels=128, retina_masks=True, depth_filter=True, max_prop_frames=5,
     camera_height=0.0, water_level=0.0, fastsam_weights='', yolo_weights='', rwps_config='',
     num_disparities=256, block_size=5, publish_images=True, publish_markers=True,
-    marker_lifetime_s=0.5, timing_window=100, warmup_frames=3,
+    marker_lifetime_s=5.0, timing_window=100, warmup_frames=3,
 )
 
 
@@ -60,12 +60,16 @@ class StixelNode(Node):
         self.last_stamp = None
         self.last_pose = None
         self.last_frames = None
+        self.last_input_stamp = None
+        self.input_epoch = 0
+        self.processed_input_epoch = 0
         self.started = time.perf_counter()
         self.input_times = deque(maxlen=self.p['timing_window'])
         self.output_times = deque(maxlen=self.p['timing_window'])
         self.samples = deque(maxlen=self.p['timing_window'])
         self.metrics = dict(received_pairs=0, processed_frames=0, skipped_frames=0,
                             errors=0, temporal_resets=0, segmentation_failures=0,
+                            input_discontinuities=0, nonmonotonic_input_pairs=0,
                             state='waiting for synchronized images and CameraInfo')
         self.backend = backend
         self.matcher = cv2.StereoSGBM_create(
@@ -123,11 +127,24 @@ class StixelNode(Node):
 
     def receive_pair(self, left, right):
         arrived = time.perf_counter()
+        timestamp = stamp_ns(left)
         with self.lock:
             self.metrics['received_pairs'] += 1
             self.input_times.append(arrived)
+            if self.last_input_stamp is not None:
+                delta_s = (timestamp - self.last_input_stamp) / 1e9
+                if -self.p['reset_gap_s'] <= delta_s <= 0:
+                    # ApproximateTimeSynchronizer can emit a duplicate or slightly
+                    # reordered pair. It is stale, but it is not a clock reset.
+                    self.metrics['nonmonotonic_input_pairs'] += 1
+                    return
+                if delta_s < -self.p['reset_gap_s'] or delta_s > self.p['reset_gap_s']:
+                    self.input_epoch += 1
+                    self.metrics['input_discontinuities'] += 1
+            self.last_input_stamp = timestamp
             infos = self.infos.copy()
-        self.slot.put((left, right, infos, arrived))
+            input_epoch = self.input_epoch
+        self.slot.put((left, right, infos, arrived, input_epoch))
 
     def update_metrics(self, **values):
         with self.lock:
@@ -143,6 +160,7 @@ class StixelNode(Node):
         try:
             from .backend import PipelineBackend
             self.backend = PipelineBackend(self.p) if self.backend is None else self.backend
+            self.update_metrics(**getattr(self.backend, 'runtime_info', {}))
         except Exception as exc:
             self.update_metrics(state=f'backend unavailable: {exc}', errors=1)
             self.get_logger().error(str(exc))
@@ -181,7 +199,8 @@ class StixelNode(Node):
                     raise
 
     def process_job(self, job):
-        left_msg, right_msg, infos, arrived = job
+        left_msg, right_msg, infos, arrived, *epoch = job
+        input_epoch = epoch[0] if epoch else self.input_epoch
         started = time.perf_counter()
         timestamp = stamp_ns(left_msg)
         age_s = (self.get_clock().now().nanoseconds - timestamp) / 1e9
@@ -216,8 +235,11 @@ class StixelNode(Node):
         if self.last_frames is not None and frames != self.last_frames:
             raise ValueError('Camera frames changed; restart the node')
         # Preserve upstream behavior within continuous runs, reset after gaps/clock jumps.
+        # A slow latest-frame worker naturally processes timestamps several seconds
+        # apart. Only reset for a gap observed at the sensor input, a clock jump, or
+        # the original planar heading discontinuity.
         reset = self.last_stamp is not None and (
-            timestamp <= self.last_stamp or (timestamp-self.last_stamp)/1e9 > self.p['reset_gap_s'])
+            timestamp <= self.last_stamp or input_epoch != self.processed_input_epoch)
         if self.last_pose is not None:
             from scipy.spatial.transform import Rotation
             angles = Rotation.from_quat([self.last_pose[3:], pose[3:]]).as_euler('xyz')[:, 2]
@@ -247,6 +269,7 @@ class StixelNode(Node):
         self.backend.synchronize()
         pipeline_ms = (time.perf_counter() - pipeline_start) * 1000
         self.last_stamp, self.last_pose, self.last_frames = timestamp, pose, frames
+        self.processed_input_epoch = input_epoch
         publishing = time.perf_counter()
         self.cloud_pub.publish(cloud_message(left_msg.header, stixels, result.stixel_footprints))
         if self.p['publish_markers']:
@@ -261,6 +284,7 @@ class StixelNode(Node):
                 msg.header = left_msg.header
                 publisher.publish(msg)
         finished = time.perf_counter()
+        frame_info = getattr(self.backend, 'last_frame_info', {})
         metrics = dict(
             queue_ms=(started-arrived)*1000, setup_ms=setup_ms, stereo_ms=stereo_ms,
             pipeline_ms=pipeline_ms, upstream_runtime_ms=float(result.runtime_ms),
@@ -272,6 +296,7 @@ class StixelNode(Node):
             lidar_points=len(xyz), valid_stixels=int(np.count_nonzero(stixels.stixel_validity)),
             water_mask_failure=bool(result.water_mask_failure), baseline_m=baseline,
             camera_height_m=camera_height, image_width=shape[1], image_height=shape[0],
+            final_water_ratio=float(np.mean(result.water_mask)), **frame_info,
         )
         with self.lock:
             self.metrics['processed_frames'] += 1

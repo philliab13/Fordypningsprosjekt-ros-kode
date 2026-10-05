@@ -23,6 +23,10 @@ class PipelineBackend:
             raise RuntimeError('A different free_space package is already imported')
         if not self.torch.cuda.is_available():
             raise RuntimeError('The unchanged FastSAM/YOLO pipeline requires CUDA; PyTorch cannot access a GPU')
+        self.runtime_info = dict(torch_version=self.torch.__version__,
+                                 torch_cuda_runtime=self.torch.version.cuda,
+                                 gpu_name=self.torch.cuda.get_device_name(),
+                                 upstream_pipeline=str(self.module.__file__))
         self.root = root
         self.pipeline = None
         self.signature = None
@@ -30,7 +34,11 @@ class PipelineBackend:
     def configure(self, k, baseline, shape, camera_height):
         signature = (tuple(k.flat), baseline, shape)
         if self.pipeline is not None:
-            if signature != self.signature:
+            old_k, old_baseline, old_shape = self.signature
+            # TF composition at large world coordinates introduces roundoff in
+            # an otherwise rigid stereo baseline. Do not mistake it for a new rig.
+            if (shape != old_shape or not np.allclose(k.flat, old_k, rtol=1e-6, atol=1e-6)
+                    or not np.isclose(baseline, old_baseline, rtol=1e-6, atol=1e-6)):
                 raise ValueError('Calibration changed; restart the node to reinitialize the pipeline')
         else:
             p = self.params
@@ -71,4 +79,16 @@ class PipelineBackend:
         self.torch.cuda.synchronize()
 
     def run(self, **kwargs):
-        return self.pipeline.process(**kwargs), self.pipeline.stixels
+        result = self.pipeline.process(**kwargs)
+        rwps_succeeded = result.rwps_mask is not None
+        plane_height = (float(getattr(self.pipeline.rwps, 'prev_height', np.nan))
+                        if rwps_succeeded else float('nan'))
+        expected_height = float(self.pipeline.temporal_filtering.camera_height)
+        self.last_frame_info = dict(
+            rwps_succeeded=rwps_succeeded,
+            rwps_plane_height_m=plane_height,
+            expected_plane_height_m=expected_height,
+            plane_height_deviation_m=(abs(plane_height - expected_height)
+                                      if np.isfinite(plane_height) else float('nan')),
+        )
+        return result, self.pipeline.stixels

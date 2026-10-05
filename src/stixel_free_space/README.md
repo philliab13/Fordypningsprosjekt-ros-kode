@@ -26,23 +26,56 @@ request CUDA and half precision. No ZED SDK or MA2 recordings are required.
 First use downloads the original `FastSAM-x.pt` and `yolo11n-seg.pt` weights if
 missing; the first few processed frames also include compilation/warmup.
 
+### Ubuntu 24.04 and modern CUDA
+
+The original repository documents its tested Ubuntu 20.04 / Python 3.8 / CUDA 12 /
+ZED SDK 4.2 environment. That remains the historical MA2 baseline. Its code,
+requirements, and README are not modified by this adapter.
+
+This ROS adapter targets **Ubuntu 24.04, ROS 2 Jazzy, Python 3.12**, and the pinned
+PyTorch 2.14.1 / torchvision 0.29.1 **CUDA 13.2** wheels. The wheel's CUDA libraries
+are version 13.2.2. These are selected explicitly in `requirements-runtime.txt`;
+`nvidia-smi` reports the driver's CUDA capability, not the version PyTorch uses.
+See the [PyTorch release notes](https://github.com/pytorch/pytorch/releases/tag/v2.14.1).
+NVIDIA's standalone toolkit is newer (13.4.2 as of 2026-10-05), but the available
+stable PyTorch CUDA wheel used here is 13.2. No standalone compiler/toolkit or
+system-driver replacement is required for this inference-only adapter.
+
+NumPy stays at 1.26.4 for Jazzy's system `cv_bridge` ABI; Open3D and Numba use
+Python-3.12-compatible wheels. FastSAM, YOLO and the stixel estimation logic remain
+the original versions. This profile does not validate the MA2 SVO loader, ZED SDK,
+or identical numerical results across library versions.
+
+To upgrade an environment created by the earlier ROS adapter setup:
+
+```bash
+.venv-stixels/bin/python -m pip install --upgrade -r src/stixel_free_space/requirements-runtime.txt
+.venv-stixels/bin/python -c 'import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())'
+```
+
+The diagnostic topic also reports `torch_version`, `torch_cuda_runtime`,
+`gpu_name`, and `upstream_pipeline`, so a recorded run identifies its runtime.
+
 ## Run against VRX
 
-Start VRX as usual with `./start_vrx.sh`. It already starts the world TF helper.
-In another terminal:
+Start VRX as usual with `./start_vrx.sh`. With the old lidar free-space launch
+disabled, start this adapter's world TF helper in the stixel launch. In another
+terminal:
 
 ```bash
 cd ~/Documents/vrx_ws
 source /opt/ros/jazzy/setup.bash
 source install/setup.bash
 ros2 launch stixel_free_space vrx.launch.py \
-  python_executable:="$PWD/.venv-stixels/bin/python" rviz:=true
+  python_executable:="$PWD/.venv-stixels/bin/python" \
+  publish_world_tf:=true rviz:=false
 ```
 
-If starting only `vrx_gz competition.launch.py` instead of the workspace script,
-add `publish_world_tf:=true`. Do not run two world TF helpers. Set `world_name`
-and `fixed_frame` for another world. Stop `stereo_viewer` and any BayesOD inference
-when benchmarking to avoid extra stereo computation/GPU contention.
+The workspace script already opens RViz, hence `rviz:=false`. If a separate lidar
+launch is providing `lidar_free_space/world_tf`, set `publish_world_tf:=false` to
+avoid two world TF helpers. Set `world_name` and `fixed_frame` for another world.
+Stop `stereo_viewer` and any BayesOD inference when benchmarking to avoid extra
+stereo computation/GPU contention.
 
 The launch attaches to live topics; it does not start another simulator. The
 default inputs are:
@@ -69,7 +102,8 @@ restart to change the configuration. `repo_path` selects the upstream checkout.
   zero, following the input convention of the original loader; upstream can set
   depths above 100 m to NaN.
 * `/stixel_free_space/markers`: RViz MarkerArray with separate 3-D vertical image
-  columns; missing columns are not connected. Markers expire in simulation time.
+  columns; missing columns are not connected. Markers expire after 5 seconds of
+  simulation time by default, which accommodates the current full-pipeline rate.
 * `/stixel_free_space/stixels`: PointCloud2, one row per column, including invalid
   columns. All fields are float32: `x,y,z,index,top_px,base_px,depth,depth_variance,
   valid,dynamic,propagated,lidar_measured`. Boolean fields are 0/1. Invalid XYZ is
@@ -116,8 +150,10 @@ only one pending pair; new pairs replace pending pairs when inference is slower
 than the cameras. There is no fixed processing rate or frame-rate assumption in
 the ROS adapter. The original 3-frame mask smoothing and 5-frame propagation limit
 remain **frame-based**, so their duration changes with actual processing frequency.
-Temporal state resets after long input gaps (default 1 s), non-increasing processed
-timestamps, processing exceptions, or the original Euler-heading wrap discontinuity.
+Temporal state resets after gaps observed in the incoming camera stream (default 1 s),
+non-increasing processed timestamps, processing exceptions, or the original
+Euler-heading wrap discontinuity. Intentional frame replacement by the latest-frame
+worker does not count as an input gap.
 Restart the node after resetting/reloading the simulation so all synchronizers and
 TF history start fresh.
 
@@ -141,7 +177,8 @@ are wall-clock rates; neither is an inference-only FPS estimate.
 
 The first 3 successful process calls are excluded from rolling percentile summaries
 (they still publish outputs and individual timings). `queue_overwrites`,
-`skipped_frames`, `errors`, `segmentation_failures`, `valid_stixels` and sensor skew
+`skipped_frames`, `errors`, `segmentation_failures`, `valid_stixels`, `rwps_succeeded`,
+`rwps_plane_height_m`, `plane_height_deviation_m`, `final_water_ratio`, and sensor skew
 help distinguish throughput from useful results. Pair counters do not count raw
 camera messages discarded by the stereo synchronizer or middleware.
 
