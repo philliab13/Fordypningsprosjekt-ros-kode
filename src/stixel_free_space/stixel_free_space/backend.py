@@ -1,0 +1,74 @@
+"""Load the user's original checkout without copying or modifying its algorithm."""
+import importlib
+from pathlib import Path
+import sys
+
+import numpy as np
+
+
+class PipelineBackend:
+    def __init__(self, params):
+        self.params = params
+        root = Path(params['repo_path']).expanduser().resolve()
+        if not (root / 'free_space/pipeline.py').is_file():
+            raise ValueError(f'repo_path does not contain free_space/pipeline.py: {root}')
+        sys.path.insert(0, str(root))
+        try:
+            self.module = importlib.import_module('free_space.pipeline')
+            self.torch = importlib.import_module('torch')
+        except ImportError as exc:
+            raise RuntimeError('Missing pipeline dependencies. Follow stixel_free_space/README.md '
+                               f'using the ROS Python interpreter: {exc}') from exc
+        if Path(self.module.__file__).resolve() != root / 'free_space/pipeline.py':
+            raise RuntimeError('A different free_space package is already imported')
+        if not self.torch.cuda.is_available():
+            raise RuntimeError('The unchanged FastSAM/YOLO pipeline requires CUDA; PyTorch cannot access a GPU')
+        self.root = root
+        self.pipeline = None
+        self.signature = None
+
+    def configure(self, k, baseline, shape, camera_height):
+        signature = (tuple(k.flat), baseline, shape)
+        if self.pipeline is not None:
+            if signature != self.signature:
+                raise ValueError('Calibration changed; restart the node to reinitialize the pipeline')
+        else:
+            p = self.params
+
+            def path(name, default):
+                value = Path(p[name]).expanduser() if p[name] else self.root / default
+                return str(value.resolve())
+
+            self.pipeline = self.module.FreeSpacePipeline(
+                k, baseline, shape, t_body_to_cam=np.zeros(2), R_body_to_cam=np.eye(2),
+                fastsam_weights=path('fastsam_weights', 'weights/FastSAM-x.pt'),
+                yolo_weights=path('yolo_weights', 'weights/yolo11n-seg.pt'),
+                rwps_config=path('rwps_config', 'configs/rwps.json'),
+                num_stixels=p['num_stixels'], retina_masks=p['retina_masks'],
+                depth_filter=p['depth_filter'], max_prop_frames=p['max_prop_frames'])
+            self.signature = signature
+            self.stixel_args = dict(
+                num_stixels=p['num_stixels'], img_shape=shape,
+                cam_params=self.pipeline.stixels.cam_params,
+                t_body_to_cam=np.zeros(2), R_body_to_cam=np.eye(2),
+                depth_filter=p['depth_filter'], max_prop_frames=p['max_prop_frames'],
+                cam_fov=float(np.rad2deg(np.arctan((shape[1] - k[0, 2]) / k[0, 0])
+                                        + np.arctan(k[0, 2] / k[0, 0]))))
+            self.reset()
+        self.pipeline.temporal_filtering.camera_height = -camera_height
+
+    def reset(self):
+        if self.pipeline is None:
+            return
+        self.pipeline.stixels = self.module.Stixels(**self.stixel_args)
+        self.pipeline.temporal_filtering = self.module.TemporalFiltering(N=3)
+        self.pipeline.rwps.prev_planemodel = None
+        self.pipeline.rwps.prev_mask = None
+        self.pipeline.prev_timestamp = 0
+        self.pipeline.prev_pose = np.array([0., 0., 0., 0., 0., 0., 1.])
+
+    def synchronize(self):
+        self.torch.cuda.synchronize()
+
+    def run(self, **kwargs):
+        return self.pipeline.process(**kwargs), self.pipeline.stixels

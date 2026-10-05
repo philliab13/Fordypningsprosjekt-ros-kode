@@ -1,0 +1,11 @@
+# ROS Jazzy uses Python 3.12. Install in a --system-site-packages venv.
+# Keep NumPy 1.x for Ubuntu's cv_bridge ABI. No ZED SDK/rosbags are needed.
+numpy==1.26.4
+scipy==1.13.1
+opencv-python==4.11.0.86
+matplotlib==3.9.4
+numba==0.61.2
+open3d==0.19.0
+torch==2.4.1
+torchvision==0.19.1
+ultralytics==8.3.202

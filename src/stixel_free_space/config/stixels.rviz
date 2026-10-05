@@ -1,0 +1,68 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Stixels
+      Enabled: true
+      Value: true
+      Topic:
+        Value: /stixel_free_space/markers
+        Depth: 1
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+    - Class: rviz_default_plugins/Image
+      Name: Camera overlay
+      Enabled: true
+      Value: true
+      Normalize Range: true
+      Topic:
+        Value: /stixel_free_space/overlay
+        Depth: 1
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+    - Class: rviz_default_plugins/Image
+      Name: Water mask
+      Enabled: true
+      Value: true
+      Normalize Range: true
+      Topic:
+        Value: /stixel_free_space/water_mask
+        Depth: 1
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+  Global Options:
+    Background Color: 32; 32; 32
+    Fixed Frame: wamv/wamv/base_link/front_left_camera_sensor_optical
+    Frame Rate: 20
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 25
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 10
+      Pitch: 0.6
+      Yaw: 3.1
+      Target Frame: <Fixed Frame>
+Window Geometry:
+  Width: 1400
+  Height: 900

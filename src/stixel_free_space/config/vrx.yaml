@@ -1,0 +1,26 @@
+stixel_free_space:
+  ros__parameters:
+    use_sim_time: true
+    fixed_frame: gymkhana_task
+    # Native VRX images are 1280x720. 128 columns divide that width exactly;
+    # upstream's 192 columns are intended for 1920-pixel images.
+    num_stixels: 128
+    retina_masks: true
+    depth_filter: true
+    max_prop_frames: 5
+    # 0 derives expected height from camera TF above water_level on each frame.
+    camera_height: 0.0
+    water_level: 0.0
+    stereo_slop_s: 0.02
+    lidar_max_skew_s: 0.10
+    require_lidar: true
+    max_input_age_s: 0.5
+    tf_wait_s: 0.2
+    reset_gap_s: 1.0
+    num_disparities: 256
+    block_size: 5
+    publish_images: true
+    publish_markers: true
+    marker_lifetime_s: 0.5
+    warmup_frames: 3
+    timing_window: 100
