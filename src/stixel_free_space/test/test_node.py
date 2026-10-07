@@ -188,3 +188,44 @@ def test_nonincreasing_timestamp_resets_temporal_state(node):
     node.process_job(sample)
     assert node.backend.resets == 1
     assert node.metrics['temporal_resets'] == 1
+
+
+def test_processed_frame_gap_does_not_reset_continuous_input(node):
+    node.p['require_lidar'] = False
+    node.p['max_input_age_s'] = 10.0
+    first = list(job(node, lidar=False))
+    first[0].header.stamp.sec -= 2
+    first[1].header.stamp = first[0].header.stamp
+    node.process_job((*first, 0))
+    node.process_job((*job(node, lidar=False), 0))
+    assert node.backend.resets == 0
+    assert node.metrics['temporal_resets'] == 0
+
+
+def test_input_discontinuity_epoch_resets_temporal_state(node):
+    node.p['require_lidar'] = False
+    node.process_job((*job(node, lidar=False), 0))
+    node.process_job((*job(node, lidar=False), 1))
+    assert node.backend.resets == 1
+    assert node.metrics['temporal_resets'] == 1
+
+
+def test_duplicate_input_pair_is_ignored_without_discontinuity(node):
+    sample = job(node, lidar=False)
+    node.receive_pair(sample[0], sample[1])
+    node.receive_pair(sample[0], sample[1])
+    assert node.metrics['received_pairs'] == 2
+    assert node.metrics['nonmonotonic_input_pairs'] == 1
+    assert node.metrics['input_discontinuities'] == 0
+    assert node.input_epoch == 0
+
+
+def test_large_backward_clock_jump_starts_new_input_epoch(node):
+    first = job(node, lidar=False)
+    second = job(node, lidar=False)
+    node.receive_pair(first[0], first[1])
+    second[0].header.stamp.sec -= 2
+    second[1].header.stamp = second[0].header.stamp
+    node.receive_pair(second[0], second[1])
+    assert node.metrics['input_discontinuities'] == 1
+    assert node.input_epoch == 1

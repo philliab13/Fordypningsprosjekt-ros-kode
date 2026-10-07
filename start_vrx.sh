@@ -14,7 +14,7 @@ source /opt/ros/jazzy/setup.bash
 
 colcon build \
     --merge-install \
-    --packages-select stereo_perception lidar_free_space
+    --packages-select stereo_perception lidar_free_space stixel_free_space
 
 source "$WS/install/setup.bash"
 
@@ -81,34 +81,34 @@ terminator \
     " &
 
 
-# Estimate polar lidar free space in the Gazebo world frame.
-terminator \
-    --new-tab \
-    -T "Lidar Free Space" \
-    -x bash -c "
-        source /opt/ros/jazzy/setup.bash
-        source '$WS/install/setup.bash'
-        exec ros2 launch lidar_free_space free_space.launch.py
-    " &
+# # Estimate polar lidar free space in the Gazebo world frame.
+# terminator \
+#     --new-tab \
+#     -T "Lidar Free Space" \
+#     -x bash -c "
+#         source /opt/ros/jazzy/setup.bash
+#         source '$WS/install/setup.bash'
+#         exec ros2 launch lidar_free_space free_space.launch.py
+#     " &
 
-# Give RViz a moment to start before opening stereo viewer.
-sleep 2
+# # Give RViz a moment to start before opening stereo viewer.
+# sleep 2
 
 
-echo
-echo "======================================"
-echo " Starting stereo perception"
-echo "======================================"
+# echo
+# echo "======================================"
+# echo " Starting stereo perception"
+# echo "======================================"
 
-terminator \
-    --new-tab \
-    -T "Stereo Perception" \
-    -x bash -c "
-        source /opt/ros/jazzy/setup.bash
-        source '$WS/install/setup.bash'
+# terminator \
+#     --new-tab \
+#     -T "Stereo Perception" \
+#     -x bash -c "
+#         source /opt/ros/jazzy/setup.bash
+#         source '$WS/install/setup.bash'
 
-        exec ros2 run stereo_perception stereo_viewer
-    " &
+#         exec ros2 run stereo_perception stereo_viewer
+#     " &
 
 
 echo
@@ -118,7 +118,7 @@ echo "======================================"
 echo
 echo "Gazebo  : VRX simulation"
 echo "RViz    : use_sim_time=true"
-echo "Stereo  : stereo_perception/stereo_viewer"
-echo "Lidar   : /lidar_free_space/polygons (RViz MarkerArray)"
+echo "Stereo viewer and lidar free-space estimator: disabled"
+echo "Start stixels separately with publish_world_tf:=true (see src/stixel_free_space/README.md)."
 echo
 echo "Press Ctrl+C inside each Terminator tab to stop its process."

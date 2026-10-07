@@ -21,6 +21,8 @@ stixel_free_space:
     block_size: 5
     publish_images: true
     publish_markers: true
-    marker_lifetime_s: 0.5
+    # Longer than the measured full-pipeline p95 so valid markers do not expire
+    # merely because inference is slower than the camera stream.
+    marker_lifetime_s: 5.0
     warmup_frames: 3
     timing_window: 100

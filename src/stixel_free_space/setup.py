@@ -13,5 +13,5 @@ setup(
     maintainer='phillip-andre', maintainer_email='philliab@stud.ntnu.no',
     description='ROS 2 streaming adapter and benchmarks for the existing stixel pipeline',
     license='Apache-2.0',
-    entry_points={'console_scripts': ['stixel_node = stixel_free_space.node:main']},
+    entry_points={'console_scripts': ['stixel_node = stixel_free_space.node:main','ma2_svo_player = stixel_free_space.ma2_svo_player:main', ]},
 )
