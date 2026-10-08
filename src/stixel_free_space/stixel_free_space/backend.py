@@ -55,12 +55,46 @@ class PipelineBackend:
         )        
         
         if self.pipeline is not None:
-            old_k, old_baseline, old_shape = self.signature
-            # TF composition at large world coordinates introduces roundoff in
-            # an otherwise rigid stereo baseline. Do not mistake it for a new rig.
-            if (shape != old_shape or not np.allclose(k.flat, old_k, rtol=1e-6, atol=1e-6)
-                    or not np.isclose(baseline, old_baseline, rtol=1e-6, atol=1e-6)):
-                raise ValueError('Calibration changed; restart the node to reinitialize the pipeline')
+            (
+                old_k,
+                old_baseline,
+                old_shape,
+                old_t_body_to_cam,
+                old_R_body_to_cam,
+            ) = self.signature
+
+            calibration_changed = (
+                shape != old_shape
+                or not np.allclose(
+                    k.flat,
+                    old_k,
+                    rtol=1e-6,
+                    atol=1e-6,
+                )
+                or not np.isclose(
+                    baseline,
+                    old_baseline,
+                    rtol=1e-6,
+                    atol=1e-6,
+                )
+                or not np.allclose(
+                    np.asarray(t_body_to_cam).flat,
+                    old_t_body_to_cam,
+                    rtol=1e-6,
+                    atol=1e-6,
+                )
+                or not np.allclose(
+                    np.asarray(R_body_to_cam).flat,
+                    old_R_body_to_cam,
+                    rtol=1e-6,
+                    atol=1e-6,
+                )
+            )
+
+            if calibration_changed:
+                raise ValueError(
+                    'Calibration changed; restart the node to reinitialize the pipeline'
+                )
         else:
             p = self.params
 
