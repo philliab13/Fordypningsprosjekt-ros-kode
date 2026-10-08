@@ -1,15 +1,19 @@
-# ROS Jazzy uses Python 3.12. Install in a --system-site-packages venv.
-# Keep NumPy 1.x for Ubuntu's cv_bridge ABI. No ZED SDK/rosbags are needed.
-# CUDA wheel selection is explicit: a newer driver alone does not change torch's runtime.
---extra-index-url https://download.pytorch.org/whl/cu132
-# The venv inherits ROS Jazzy's colcon-core, which requires setuptools < 80.
-setuptools<80
-numpy==1.26.4
+# Canonical Python runtime for stixel_free_space on Ubuntu 24.04 / ROS 2 Jazzy.
+# Create a clean Python 3.12 venv WITHOUT --system-site-packages.
+# ROS Python modules are exposed separately from /opt/ros/jazzy.
+# pyzed is provided by the installed ZED SDK and linked into the venv by
+# scripts/setup_stixel_env.sh; it is not distributed through PyPI.
+
+--extra-index-url https://download.pytorch.org/whl/cu130
+
+setuptools==78.1.0
+numpy==2.2.6
 scipy==1.13.1
 opencv-python==4.11.0.86
-matplotlib==3.9.4
+matplotlib==3.11.2
 numba==0.61.2
-open3d==0.19.0
-torch==2.14.1+cu132
-torchvision==0.29.1+cu132
-ultralytics==8.3.202
+open3d==0.20.0
+torch==2.14.1+cu130
+torchvision==0.29.1+cu130
+ultralytics==8.4.174
+PyYAML==6.0.3
