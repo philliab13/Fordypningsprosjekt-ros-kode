@@ -31,8 +31,29 @@ class PipelineBackend:
         self.pipeline = None
         self.signature = None
 
-    def configure(self, k, baseline, shape, camera_height):
-        signature = (tuple(k.flat), baseline, shape)
+    def configure(
+        self,
+        k,
+        baseline,
+        shape,
+        camera_height,
+        t_body_to_cam=None,
+        R_body_to_cam=None,
+    ):
+        if t_body_to_cam is None:
+            t_body_to_cam = np.zeros(2)
+
+        if R_body_to_cam is None:
+            R_body_to_cam = np.eye(2)
+            
+        signature = (
+            tuple(k.flat),
+            float(baseline),
+            shape,
+            tuple(np.asarray(t_body_to_cam).flat),
+            tuple(np.asarray(R_body_to_cam).flat),
+        )        
+        
         if self.pipeline is not None:
             old_k, old_baseline, old_shape = self.signature
             # TF composition at large world coordinates introduces roundoff in
@@ -48,7 +69,7 @@ class PipelineBackend:
                 return str(value.resolve())
 
             self.pipeline = self.module.FreeSpacePipeline(
-                k, baseline, shape, t_body_to_cam=np.zeros(2), R_body_to_cam=np.eye(2),
+                k, baseline, shape, t_body_to_cam=t_body_to_cam, R_body_to_cam=R_body_to_cam,
                 fastsam_weights=path('fastsam_weights', 'weights/FastSAM-x.pt'),
                 yolo_weights=path('yolo_weights', 'weights/yolo11n-seg.pt'),
                 rwps_config=path('rwps_config', 'configs/rwps.json'),
@@ -58,7 +79,7 @@ class PipelineBackend:
             self.stixel_args = dict(
                 num_stixels=p['num_stixels'], img_shape=shape,
                 cam_params=self.pipeline.stixels.cam_params,
-                t_body_to_cam=np.zeros(2), R_body_to_cam=np.eye(2),
+                t_body_to_cam=t_body_to_cam, R_body_to_cam=R_body_to_cam,
                 depth_filter=p['depth_filter'], max_prop_frames=p['max_prop_frames'],
                 cam_fov=float(np.rad2deg(np.arctan((shape[1] - k[0, 2]) / k[0, 0])
                                         + np.arctan(k[0, 2] / k[0, 0]))))

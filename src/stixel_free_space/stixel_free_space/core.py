@@ -147,3 +147,21 @@ def stixel_rows(stixels, footprints):
                             stixels.stixel_fused_depths, stixels.stixel_fused_depths_var,
                             valid, stixels.dynamic_stixel_list, stixels.using_prop_depth,
                             stixels.stixel_has_measurement)).astype(np.float32)
+
+def nearest_pose(poses, timestamp, max_skew_s=0.1):
+    if not poses:
+        return None
+
+    pose = min(
+        poses,
+        key=lambda msg: abs(stamp_ns(msg) - timestamp)
+    )
+
+    skew_s = abs(
+        stamp_ns(pose) - timestamp
+    ) / 1e9
+
+    if skew_s > max_skew_s:
+        return None
+
+    return pose
