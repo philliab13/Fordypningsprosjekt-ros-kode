@@ -11,11 +11,18 @@ if [[ ! -f "$VENV/bin/activate" ]]; then
   return 1 2>/dev/null || exit 1
 fi
 
+# Prevent packages from ~/.local/lib/pythonX.Y/site-packages from leaking in.
+export PYTHONNOUSERSITE=1
+
+# Remove stale Python paths inherited from another environment/shell.
+unset PYTHONPATH
+
 source "$VENV/bin/activate"
 source /opt/ros/jazzy/setup.bash
 
-# Clean venvs do not inherit ROS Python packages.
-export PYTHONPATH="/opt/ros/jazzy/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
+# Ubuntu's system TBB is older than the interface required by this Numba build.
+# Use Numba's OpenMP threading backend instead.
+export NUMBA_THREADING_LAYER=omp
 
 if [[ -f "$ROOT/install/setup.bash" ]]; then
   source "$ROOT/install/setup.bash"
@@ -25,6 +32,7 @@ export STIXEL_WS="$ROOT"
 
 echo "stixel environment active"
 echo "  python: $(command -v python)"
+
 python - <<'PY'
 import numpy
 print("  numpy:", numpy.__version__)
