@@ -126,6 +126,54 @@ def compute_stereo(matcher, left, right, fx, baseline):
     return disparity, depth
 
 
+def stereo_lidar_depth_errors(depth, uv, xyz, max_depth_m=None):
+    """Return signed ZED-depth minus projected-LiDAR Z errors in metres.
+
+    uv and xyz must be corresponding projected lidar samples in the camera
+    optical frame. Invalid ZED pixels and invalid/non-positive lidar depths
+    are discarded. max_depth_m limits the lidar reference range.
+    """
+    depth = np.asarray(depth)
+    uv = np.asarray(uv, dtype=float).reshape(-1, 2)
+    xyz = np.asarray(xyz, dtype=float).reshape(-1, 3)
+
+    if depth.ndim != 2:
+        raise ValueError('depth must be a 2-D image')
+    if len(uv) != len(xyz):
+        raise ValueError('uv and xyz must contain corresponding lidar samples')
+    if max_depth_m is not None and (not np.isfinite(max_depth_m) or max_depth_m <= 0):
+        raise ValueError('max_depth_m must be positive and finite')
+
+    if len(uv) == 0:
+        return np.empty(0, dtype=np.float64)
+
+    h, w = depth.shape
+    pixels = np.rint(uv).astype(np.int64)
+    u = pixels[:, 0]
+    v = pixels[:, 1]
+    z_lidar = xyz[:, 2]
+
+    valid = (
+        np.isfinite(uv).all(axis=1)
+        & np.isfinite(z_lidar)
+        & (z_lidar > 0)
+        & (u >= 0) & (u < w)
+        & (v >= 0) & (v < h)
+    )
+    if max_depth_m is not None:
+        valid &= z_lidar <= max_depth_m
+
+    if not np.any(valid):
+        return np.empty(0, dtype=np.float64)
+
+    u = u[valid]
+    v = v[valid]
+    z_lidar = z_lidar[valid]
+    z_stereo = depth[v, u].astype(np.float64, copy=False)
+
+    valid_depth = np.isfinite(z_stereo) & (z_stereo > 0)
+    return np.ascontiguousarray(z_stereo[valid_depth] - z_lidar[valid_depth])
+
 def nearest_cloud(clouds, timestamp, max_skew_s):
     if not clouds:
         return None
