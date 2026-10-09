@@ -165,3 +165,67 @@ def nearest_pose(poses, timestamp, max_skew_s=0.1):
         return None
 
     return pose
+
+def stereo_lidar_depth_errors(depth, uv, xyz, max_depth_m=10.0):
+    """
+    Compare ZED depth with projected LiDAR depth.
+
+    depth:
+        HxW ZED depth image in metres.
+
+    uv:
+        Nx2 projected LiDAR pixel coordinates.
+
+    xyz:
+        Nx3 LiDAR points in the camera optical frame.
+
+    Returns:
+        1-D array of signed errors:
+            z_stereo - z_lidar
+    """
+
+    depth = np.asarray(depth)
+    uv = np.asarray(uv)
+    xyz = np.asarray(xyz)
+
+    if len(uv) == 0:
+        return np.empty(0, dtype=np.float64)
+
+    h, w = depth.shape
+
+    # Projected coordinates are floating point, so choose the nearest pixel.
+    u = np.rint(uv[:, 0]).astype(int)
+    v = np.rint(uv[:, 1]).astype(int)
+
+    # In the optical camera frame, Z is forward depth.
+    z_lidar = xyz[:, 2]
+
+    valid = (
+        np.isfinite(z_lidar)
+        & (z_lidar > 0)
+        & (z_lidar <= max_depth_m)
+        & (u >= 0)
+        & (u < w)
+        & (v >= 0)
+        & (v < h)
+    )
+
+    u = u[valid]
+    v = v[valid]
+    z_lidar = z_lidar[valid]
+
+    if len(z_lidar) == 0:
+        return np.empty(0, dtype=np.float64)
+
+    z_stereo = depth[v, u]
+
+    # ZED can contain NaN/inf/zero where it has no valid depth.
+    valid_stereo = (
+        np.isfinite(z_stereo)
+        & (z_stereo > 0)
+    )
+
+    z_stereo = z_stereo[valid_stereo]
+    z_lidar = z_lidar[valid_stereo]
+
+    return z_stereo - z_lidar

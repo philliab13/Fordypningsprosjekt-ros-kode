@@ -22,7 +22,7 @@ from visualization_msgs.msg import MarkerArray
 from geometry_msgs.msg import PoseStamped
 
 from .core import (LatestSlot, compute_stereo, nearest_cloud, pipeline_pose,
-                   project_lidar, stamp_ns, stereo_calibration, transform_matrix, nearest_pose)
+                   project_lidar, stamp_ns, stereo_calibration, transform_matrix, nearest_pose, stereo_lidar_depth_errors)
 from .outputs import cloud_message, marker_message, overlay_image
 
 from .ma2_calibration import (
@@ -582,6 +582,33 @@ class StixelNode(Node):
 
             uv = uv[in_image]
             xyz = xyz[in_image]
+            
+            depth_errors = stereo_lidar_depth_errors(
+                depth,
+                uv,
+                xyz,
+                max_depth_m=20.0,
+            )
+            if len(depth_errors) > 0:
+                stereo_lidar_mae = float(
+                    np.mean(np.abs(depth_errors))
+                )
+
+                stereo_lidar_rmse = float(
+                    np.sqrt(np.mean(depth_errors ** 2))
+                )
+
+                stereo_lidar_bias = float(
+                    np.mean(depth_errors)
+                )
+
+                stereo_lidar_pairs = len(depth_errors)
+
+            else:
+                stereo_lidar_mae = float('nan')
+                stereo_lidar_rmse = float('nan')
+                stereo_lidar_bias = float('nan')
+                stereo_lidar_pairs = 0
         
         camera_height = self.p['camera_height']
 
@@ -712,6 +739,10 @@ class StixelNode(Node):
             final_water_ratio=float(
                 np.mean(result.water_mask)
             ),
+            stereo_lidar_pairs=stereo_lidar_pairs,
+            stereo_lidar_mae_m=stereo_lidar_mae,
+            stereo_lidar_rmse_m=stereo_lidar_rmse,
+            stereo_lidar_bias_m=stereo_lidar_bias,
             **frame_info,
         )
 

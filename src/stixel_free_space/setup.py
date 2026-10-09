@@ -1,5 +1,6 @@
 from glob import glob
 from setuptools import setup
+import os
 
 setup(
     name='stixel_free_space', version='0.1.0', packages=['stixel_free_space'],
