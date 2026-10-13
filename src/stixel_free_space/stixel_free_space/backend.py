@@ -1,4 +1,3 @@
-"""Load the user's original checkout without copying or modifying its algorithm."""
 import importlib
 from pathlib import Path
 import sys
