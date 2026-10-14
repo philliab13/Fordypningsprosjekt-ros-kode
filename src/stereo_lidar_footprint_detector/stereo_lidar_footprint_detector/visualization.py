@@ -1,4 +1,3 @@
-
 """ROS2 visualization helpers for YOLO depth overlays and water-plane footprints."""
 
 import cv2
@@ -114,12 +113,8 @@ def publish_obstacle_markers(publisher, obstacles, header, frame_id):
         label.action = Marker.ADD
 
         label.pose.orientation.w = 1.0
-        label.pose.position.x = float(
-            sum(p[0] for p in ring[:-1]) / (len(ring) - 1)
-        )
-        label.pose.position.y = float(
-            sum(p[1] for p in ring[:-1]) / (len(ring) - 1)
-        )
+        label.pose.position.x = float(sum(p[0] for p in ring[:-1]) / (len(ring) - 1))
+        label.pose.position.y = float(sum(p[1] for p in ring[:-1]) / (len(ring) - 1))
         label.pose.position.z = 1.0
 
         label.scale.z = 0.8
@@ -128,7 +123,7 @@ def publish_obstacle_markers(publisher, obstacles, header, frame_id):
         label.color.b = 1.0
         label.color.a = 1.0
 
-        label.text = f'{props["depth_m"]:.1f} m'
+        label.text = f"{props['depth_m']:.1f} m"
 
         markers.markers.append(label)
 
