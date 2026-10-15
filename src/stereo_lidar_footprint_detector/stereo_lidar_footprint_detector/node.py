@@ -204,6 +204,30 @@ class FootprintNode(Node):
                 lidar_xyz=xyz,
                 camera_to_water=transform,
             )
+            if transform is not None and result.obstacles["features"]:
+                # Reconstruct the same bottom corners used by create_obstacles,
+                # retaining their height before projection onto water-frame z=0.
+                inverse_k = np.linalg.inv(k)
+                heights = []
+                height, width = left.shape[:2]
+                for feature in result.obstacles["features"]:
+                    props = feature["properties"]
+                    index = props["detection_index"]
+                    x1, _, x2, y2 = np.clip(
+                        result.boat_boxes[index],
+                        [0, 0, 0, 0], [width, height, width, height])
+                    rays = np.array([[x1, y2, 1.0], [x2, y2, 1.0]]) @ inverse_k.T
+                    camera_points = rays * (props["depth_m"] / rays[:, 2:3])
+                    water_points = camera_points @ transform[:3, :3].T + transform[:3, 3]
+                    heights.append(
+                        f"detection {index}: left={water_points[0, 2]:+.3f} m, "
+                        f"right={water_points[1, 2]:+.3f} m "
+                        f"(depth={props['depth_m']:.2f} m)")
+                self.get_logger().info(
+                    f"Bottom-corner heights in {water_frame} before flattening to z=0 "
+                    "(negative = below plane): " + "; ".join(heights),
+                    throttle_duration_sec=1.0,
+                )
             publish_yolo_overlay(
                 self.yolo_image_pub,
                 result,

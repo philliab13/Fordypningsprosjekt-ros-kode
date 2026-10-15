@@ -1,0 +1,374 @@
+---
+timestamp_ns: 1689070909676458579
+frame_id: p0_floor
+units: m
+type: FeatureCollection
+features:
+- type: Feature
+  properties:
+    id: obstacle_0000
+    Type: detected obstacle
+    detection_index: 0
+    side_length_m: 10.275952713556721
+    area_m2: 105.59520417125374
+    depth_m: 24.681255283228726
+    depth_variance_m2: 0.0001
+    depth_sources:
+    - lidar_depth_m
+    lidar_depth_m: 24.681255283228726
+    class_id: 8
+    confidence: 0.750029981136322
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-28.651221470438667, -12.933350048868277]
+      - [-28.7084131447155, -23.20914360866925]
+      - [-38.984206704516474, -23.151951934392418]
+      - [-38.927015030239644, -12.876158374591444]
+      - [-28.651221470438667, -12.933350048868277]
+- type: Feature
+  properties:
+    id: obstacle_0001
+    Type: detected obstacle
+    detection_index: 1
+    side_length_m: 3.4218528324389164
+    area_m2: 11.709076806870234
+    depth_m: 22.747247874088142
+    depth_variance_m2: 0.0001
+    depth_sources:
+    - lidar_depth_m
+    lidar_depth_m: 22.747247874088142
+    class_id: 8
+    confidence: 0.5997536778450012
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-26.700444311614415, 2.966083363305447]
+      - [-26.71948891974675, -0.4557164715433598]
+      - [-30.141288754595557, -0.43667186341102326]
+      - [-30.12224414646322, 2.9851279714377834]
+      - [-26.700444311614415, 2.966083363305447]
+- type: Feature
+  properties:
+    id: obstacle_0002
+    Type: detected obstacle
+    detection_index: 2
+    side_length_m: 4.131716973345151
+    area_m2: 17.071085147828416
+    depth_m: 13.579821889511452
+    depth_variance_m2: 9.999064462883653e-05
+    depth_sources:
+    - stereo_depth_m
+    - lidar_depth_m
+    stereo_depth_m: 16.179285049438477
+    lidar_depth_m: 13.579578677331181
+    class_id: 8
+    confidence: 0.45382624864578247
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-17.45623919298268, -0.516517059328506]
+      - [-17.479234609362113, -4.64817004072154]
+      - [-21.610887590755148, -4.625174624342106]
+      - [-21.587892174375714, -0.4935216429490721]
+      - [-17.45623919298268, -0.516517059328506]
+---
+timestamp_ns: 1689070912757969579
+frame_id: p0_floor
+units: m
+type: FeatureCollection
+features:
+- type: Feature
+  properties:
+    id: obstacle_0000
+    Type: detected obstacle
+    detection_index: 0
+    side_length_m: 10.218210723294614
+    area_m2: 104.41183038565305
+    depth_m: 23.041982368589984
+    depth_variance_m2: 0.0001
+    depth_sources:
+    - lidar_depth_m
+    lidar_depth_m: 23.041982368589984
+    class_id: 8
+    confidence: 0.7491757869720459
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-27.0114279177718, -11.896403046537987]
+      - [-27.068298224172462, -22.114455510383674]
+      - [-37.286350688018146, -22.057585203983013]
+      - [-37.22948038161749, -11.839532740137326]
+      - [-27.0114279177718, -11.896403046537987]
+- type: Feature
+  properties:
+    id: obstacle_0001
+    Type: detected obstacle
+    detection_index: 1
+    side_length_m: 4.986399148112242
+    area_m2: 24.864176464294495
+    depth_m: 16.308203662428742
+    depth_variance_m2: 0.0001
+    depth_sources:
+    - lidar_depth_m
+    lidar_depth_m: 16.308203662428742
+    class_id: 8
+    confidence: 0.6476243138313293
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-20.206164180612646, 7.116290780421554]
+      - [-20.23391640211877, 2.1299688615623276]
+      - [-25.220238320977998, 2.157721083068451]
+      - [-25.19248609947187, 7.1440430019276775]
+      - [-20.206164180612646, 7.116290780421554]
+- type: Feature
+  properties:
+    id: obstacle_0002
+    Type: detected obstacle
+    detection_index: 2
+    side_length_m: 4.361690761412807
+    area_m2: 19.02434629819383
+    depth_m: 12.306091205910759
+    depth_variance_m2: 9.998268691202296e-05
+    depth_sources:
+    - stereo_depth_m
+    - lidar_depth_m
+    stereo_depth_m: 13.871464252471924
+    lidar_depth_m: 12.305820144568951
+    class_id: 8
+    confidence: 0.42976027727127075
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-16.181400746115436, -4.200440610886344]
+      - [-16.20567610084667, -8.562063818517478]
+      - [-20.567299308477804, -8.537788463786244]
+      - [-20.54302395374657, -4.17616525615511]
+      - [-16.181400746115436, -4.200440610886344]
+---
+timestamp_ns: 1689070912958928579
+frame_id: p0_floor
+units: m
+type: FeatureCollection
+features:
+- type: Feature
+  properties:
+    id: obstacle_0000
+    Type: detected obstacle
+    detection_index: 0
+    side_length_m: 10.141480042452413
+    area_m2: 102.84961745146059
+    depth_m: 23.006162316144383
+    depth_variance_m2: 0.0001
+    depth_sources:
+    - lidar_depth_m
+    lidar_depth_m: 23.006162316144383
+    class_id: 8
+    confidence: 0.6803537011146545
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-26.96821245089969, -11.986524046785483]
+      - [-27.0246557062786, -22.127847018192263]
+      - [-37.16597867768538, -22.07140376281335]
+      - [-37.109535422306465, -11.93008079140657]
+      - [-26.96821245089969, -11.986524046785483]
+- type: Feature
+  properties:
+    id: obstacle_0001
+    Type: detected obstacle
+    detection_index: 1
+    side_length_m: 5.205827656640532
+    area_m2: 27.100641590643455
+    depth_m: 16.20128230984542
+    depth_variance_m2: 0.0001
+    depth_sources:
+    - lidar_depth_m
+    lidar_depth_m: 16.20128230984542
+    class_id: 8
+    confidence: 0.6385800242424011
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-20.087265721253665, 7.598900303130161]
+      - [-20.116239190476342, 2.3931532742471155]
+      - [-25.32198621935939, 2.422126743469793]
+      - [-25.29301275013671, 7.627873772352839]
+      - [-20.087265721253665, 7.598900303130161]
+- type: Feature
+  properties:
+    id: obstacle_0002
+    Type: detected obstacle
+    detection_index: 2
+    side_length_m: 2.935469252612175
+    area_m2: 8.616979733031481
+    depth_m: 12.27870721326745
+    depth_variance_m2: 9.998199153663518e-05
+    depth_sources:
+    - stereo_depth_m
+    - lidar_depth_m
+    stereo_depth_m: 13.735548973083496
+    lidar_depth_m: 12.278444811198272
+    class_id: 8
+    confidence: 0.4616547226905823
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-16.161681622577312, -4.501767538493133]
+      - [-16.178019222216474, -7.437191326614622]
+      - [-19.113443010337964, -7.42085372697546]
+      - [-19.097105410698802, -4.485429938853971]
+      - [-16.161681622577312, -4.501767538493133]
+---
+timestamp_ns: 1689070913829727579
+frame_id: p0_floor
+units: m
+type: FeatureCollection
+features:
+- type: Feature
+  properties:
+    id: obstacle_0000
+    Type: detected obstacle
+    detection_index: 0
+    side_length_m: 9.724602505809983
+    area_m2: 94.5678938960058
+    depth_m: 22.207404334074003
+    depth_variance_m2: 0.0001
+    depth_sources:
+    - lidar_depth_m
+    lidar_depth_m: 22.207404334074003
+    class_id: 8
+    confidence: 0.7257784605026245
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-26.153979334037448, -11.6866342714709]
+      - [-26.208102422619806, -21.41108616282643]
+      - [-35.93255431397533, -21.35696307424407]
+      - [-35.87843122539297, -11.632511182888543]
+      - [-26.153979334037448, -11.6866342714709]
+- type: Feature
+  properties:
+    id: obstacle_0001
+    Type: detected obstacle
+    detection_index: 1
+    side_length_m: 5.63671784009944
+    area_m2: 31.772588008895294
+    depth_m: 13.431018260334996
+    depth_variance_m2: 9.999306876140833e-05
+    depth_sources:
+    - stereo_depth_m
+    - lidar_depth_m
+    stereo_depth_m: 17.439117431640625
+    lidar_depth_m: 13.430740430161372
+    class_id: 8
+    confidence: 0.6937739253044128
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-17.30887983474122, 8.71137277467607]
+      - [-17.340251459318285, 3.074742235952897]
+      - [-22.976881998041456, 3.1061138605299625]
+      - [-22.945510373464394, 8.742744399253136]
+      - [-17.30887983474122, 8.71137277467607]
+- type: Feature
+  properties:
+    id: obstacle_0002
+    Type: detected obstacle
+    detection_index: 2
+    side_length_m: 4.501331014896816
+    area_m2: 20.261980905671997
+    depth_m: 11.458008149733846
+    depth_variance_m2: 9.997844171637018e-05
+    depth_sources:
+    - stereo_depth_m
+    - lidar_depth_m
+    stereo_depth_m: 13.131301879882812
+    lidar_depth_m: 11.457647338540843
+    class_id: 8
+    confidence: 0.3128684163093567
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-15.327081758347983, -5.47080591378989]
+      - [-15.35213429258907, -9.972067212159503]
+      - [-19.853395590958684, -9.947014677918416]
+      - [-19.828343056717596, -5.445753379548803]
+      - [-15.327081758347983, -5.47080591378989]
+---
+timestamp_ns: 1689070914365645579
+frame_id: p0_floor
+units: m
+type: FeatureCollection
+features:
+- type: Feature
+  properties:
+    id: obstacle_0000
+    Type: detected obstacle
+    detection_index: 0
+    side_length_m: 9.5928777139724
+    area_m2: 92.02330283522835
+    depth_m: 21.800132410683542
+    depth_variance_m2: 0.0001
+    depth_sources:
+    - lidar_depth_m
+    lidar_depth_m: 21.800132410683542
+    class_id: 8
+    confidence: 0.7154296040534973
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-25.744309070444242, -11.44287948069213]
+      - [-25.797699033680566, -21.03560862036109]
+      - [-35.39042817334953, -20.982218657124765]
+      - [-35.3370382101132, -11.389489517455806]
+      - [-25.744309070444242, -11.44287948069213]
+- type: Feature
+  properties:
+    id: obstacle_0001
+    Type: detected obstacle
+    detection_index: 1
+    side_length_m: 6.034910965519792
+    area_m2: 36.42015036175103
+    depth_m: 11.881104951947227
+    depth_variance_m2: 9.998656554636414e-05
+    depth_sources:
+    - stereo_depth_m
+    - lidar_depth_m
+    stereo_depth_m: 14.779684066772461
+    lidar_depth_m: 11.880715491358048
+    class_id: 8
+    confidence: 0.706514835357666
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-15.755400430188374, 9.451972717657078]
+      - [-15.78898823190863, 3.417155220720934]
+      - [-21.823805728844775, 3.4507430224411912]
+      - [-21.790217927124516, 9.485560519377335]
+      - [-15.755400430188374, 9.451972717657078]
+- type: Feature
+  properties:
+    id: obstacle_0002
+    Type: detected obstacle
+    detection_index: 2
+    side_length_m: 4.707478172220485
+    area_m2: 22.16035074193232
+    depth_m: 10.994675760791745
+    depth_variance_m2: 9.997559445952211e-05
+    depth_sources:
+    - stereo_depth_m
+    - lidar_depth_m
+    stereo_depth_m: 12.730226516723633
+    lidar_depth_m: 10.994252086849578
+    class_id: 8
+    confidence: 0.3373708724975586
+  geometry:
+    type: Polygon
+    coordinates:
+    - - [-14.884183018764746, -5.998652429968246]
+      - [-14.910382882251442, -10.706057692858366]
+      - [-19.61778814514156, -10.67985782937167]
+      - [-19.591588281654865, -5.97245256648155]
+      - [-14.884183018764746, -5.998652429968246]
