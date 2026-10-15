@@ -1,7 +1,8 @@
 """First-test ROS adapter: registered optical depth + rectified image + LiDAR."""
 
-from collections import deque
 import json
+import threading
+from collections import deque
 
 import message_filters
 import numpy as np
@@ -13,32 +14,32 @@ from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import String
-from tf2_ros import Buffer, TransformListener
-import threading
-from visualization_msgs.msg import MarkerArray
-
 from stixel_free_space.core import (
+    LatestSlot,
     nearest_cloud,
     project_lidar,
     stamp_ns,
     transform_matrix,
-    LatestSlot,
 )
-from .backend import PipelineBackend
-from .images import image_array
 from stixel_free_space.ma2_calibration import (
     H_POINTS_ZED_FROM_LIDAR,
 )
+from tf2_ros import Buffer, TransformListener
+from visualization_msgs.msg import MarkerArray
+
+from .backend import PipelineBackend
+from .images import image_array
 from .visualization import (
-    publish_yolo_overlay,
     publish_obstacle_markers,
+    publish_obstacle_overlay,
+    publish_yolo_overlay,
 )
 
 
 class FootprintNode(Node):
     def __init__(self):
         super().__init__("stereo_lidar_footprint_detector")
-        defaults = dict(
+        defaults = dict(  # noqa: C408
             repo_path="",
             baseline_m=0.0,
             weights="",
@@ -99,6 +100,8 @@ class FootprintNode(Node):
             "/debug/yolo_overlay",
             10,
         )
+        self.obstacle_image_pub = self.create_publisher(
+            Image, '/debug/obstacle_overlay', 10)
 
         self.worker_thread = threading.Thread(
             target=self.work,
@@ -212,6 +215,9 @@ class FootprintNode(Node):
                 result.obstacles, stamp_ns(image), frame_id
             )
             self.publisher.publish(String(data=json.dumps(collection, allow_nan=False)))
+            publish_obstacle_overlay(
+                self.obstacle_image_pub, left, result.obstacles,
+                result.boat_boxes, k, image.header, transform)
             publish_obstacle_markers(
                 self.marker_pub,
                 result.obstacles,

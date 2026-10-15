@@ -1,17 +1,20 @@
-import pyzed.sl as sl
-import numpy as np
-import rclpy
+from pathlib import Path
 
+from .scenario import load_scenario
+
+import numpy as np
+import pyzed.sl as sl
+import rclpy
 from rclpy.node import Node
-from rclpy.time import Time
-from sensor_msgs.msg import Image, CameraInfo
-from rosgraph_msgs.msg import Clock
 from rclpy.qos import (
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
     QoSProfile,
     QoSReliabilityPolicy,
-    QoSHistoryPolicy,
-    QoSDurabilityPolicy,
 )
+from rclpy.time import Time
+from rosgraph_msgs.msg import Clock
+from sensor_msgs.msg import CameraInfo, Image
 
 
 def numpy_to_image_msg(array, encoding, stamp, frame_id):
@@ -48,44 +51,22 @@ class MA2SVOPlayer(Node):
     def __init__(self):
         super().__init__('ma2_svo_player')
 
-        # --------------------------------------------------
-        # SVO path
-        # --------------------------------------------------
-
-        self.input_path = (
-            "/home/phillip-andre/Documents/"
-            "Data_For_Stixel_based_Free_space_estimation/"
-            "2023-07-11_Multi_ZED_Summer/"
-            "ZED camera svo files/"
-            "2023-07-11_11-30-51_28170706_HD1080_FPS15.svo"
-        )
-
-        # --------------------------------------------------
-        # MA2 / ZED synchronization
-        # --------------------------------------------------
-
-        ma2_clap_timestamps = np.array([
-            1689068801634572145,
-            1689068803035078922,
-            1689068804635190937,
-            1689068806436892969,
-            1689068809235474632,
-        ], dtype=np.int64)
-
-        svo_clap_timestamps = np.array([
-            1689068801796052729,
-            1689068803135787729,
-            1689068804743766729,
-            1689068806686255729,
-            1689068809298756729,
-        ], dtype=np.int64)
-
-        self.time_offset_ns = int(
-            np.mean(
-                ma2_clap_timestamps
-                - svo_clap_timestamps
-            )
-        )
+        self.declare_parameter('scenario', 'scen1')
+        self.declare_parameter(
+            'scenario_dir',
+            str(Path.home() / 'Documents/Stixel_based_free_space_estimation/'
+                'free-space-estimation/configs/scenarios'))
+        self.declare_parameter(
+            'data_root',
+            str(Path.home() / 'Documents/Data_For_Stixel_based_Free_space_estimation/'
+                '2023-07-11_Multi_ZED_Summer'))
+        config_path, config, self.input_path, self.time_offset_ns = load_scenario(
+            self.get_parameter('scenario').value,
+            self.get_parameter('scenario_dir').value,
+            self.get_parameter('data_root').value)
+        self.get_logger().info(
+            f"Scenario: {config.get('name', config_path.stem)} ({config_path}) | "
+            f"SVO: {self.input_path} | ROS bag: {config.get('rosbag', 'unspecified')}")
 
         self.get_logger().info(
             f"MA2-SVO time offset: "

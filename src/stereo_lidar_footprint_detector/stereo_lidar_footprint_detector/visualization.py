@@ -2,10 +2,64 @@
 
 import cv2
 import numpy as np
-
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import Image
 from visualization_msgs.msg import Marker, MarkerArray
+
+
+def publish_obstacle_overlay(publisher, image, obstacles, boxes, k, header,
+                             camera_to_water=None):
+    """Project the JSON footprint rings onto the matching rectified image.
+
+    A configured water frame uses z=0. The synthetic right/forward plane
+    omits height, so recover it from each detection's bottom edge and depth.
+    """
+    annotated = np.ascontiguousarray(image.copy())
+    water_to_camera = (np.linalg.inv(camera_to_water)
+                       if camera_to_water is not None else None)
+    inverse_k = np.linalg.inv(k)
+    height, width = annotated.shape[:2]
+    for feature in obstacles['features']:
+        props = feature['properties']
+        ring = np.asarray(feature['geometry']['coordinates'][0], dtype=float)
+        if water_to_camera is None:
+            x1, _, x2, y2 = np.clip(
+                boxes[props['detection_index']],
+                [0, 0, 0, 0], [width, height, width, height])
+            ray = inverse_k @ np.array([(x1 + x2) / 2, y2, 1.0])
+            camera_y = ray[1] * props['depth_m'] / ray[2]
+            points = np.column_stack((ring[:, 0],
+                                      np.full(len(ring), camera_y), ring[:, 1]))
+        else:
+            plane = np.column_stack((ring, np.zeros(len(ring)), np.ones(len(ring))))
+            points = (plane @ water_to_camera.T)[:, :3]
+        if not np.isfinite(points).all():
+            continue
+        for start, end in zip(points[:-1], points[1:]):
+            start, end = start.copy(), end.copy()
+            # Clip to the camera near plane before perspective division.
+            near = 0.05
+            if start[2] < near and end[2] < near:
+                continue
+            if start[2] < near:
+                start += (end - start) * ((near - start[2]) / (end[2] - start[2]))
+            if end[2] < near:
+                end += (start - end) * ((near - end[2]) / (start[2] - end[2]))
+            pixels = np.array([start, end]) @ k.T
+            pixels = np.clip(pixels[:, :2] / pixels[:, 2:3], -1e7, 1e7).astype(int)
+            visible, a, b = cv2.clipLine((0, 0, width, height),
+                                         tuple(pixels[0]), tuple(pixels[1]))
+            if visible:
+                cv2.line(annotated, a, b, (0, 165, 255), 2, cv2.LINE_AA)
+
+    msg = Image()
+    msg.header = header
+    msg.height, msg.width = annotated.shape[:2]
+    msg.encoding = 'bgr8'
+    msg.is_bigendian = False
+    msg.step = msg.width * 3
+    msg.data = annotated.tobytes()
+    publisher.publish(msg)
 
 
 def publish_yolo_overlay(publisher, result, header):

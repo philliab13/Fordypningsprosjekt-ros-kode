@@ -10,7 +10,7 @@ setup(
         ('share/stixel_free_space/config', glob('config/*')),
         ('share/stixel_free_space/launch', glob('launch/*.launch.py')),
     ],
-    install_requires=['setuptools'], zip_safe=True,
+    install_requires=['setuptools', 'PyYAML'], zip_safe=True,
     maintainer='phillip-andre', maintainer_email='philliab@stud.ntnu.no',
     description='ROS 2 streaming adapter and benchmarks for the existing stixel pipeline',
     license='Apache-2.0',

@@ -159,8 +159,27 @@ catches up. They are not a failure if the state subsequently becomes `running`.
 cd ~/Documents/vrx_ws
 source scripts/activate_stixel_env.sh
 
-python -m stixel_free_space.ma2_svo_player
+python -m stixel_free_space.ma2_svo_player --ros-args -p scenario:=scen1
 ```
+
+Set `scenario` to the matching YAML name, such as `scen5`, `scen6`, or
+`scen4_2`, and play the corresponding bag in terminal 3. The default is `scen1`.
+The player reads `svo_file` and `clap_timestamps` directly from
+`~/Documents/Stixel_based_free_space_estimation/free-space-estimation/configs/scenarios`.
+Two-frame clap intervals use their midpoint. The mean MA2-minus-SVO clap
+difference corrects the published camera timestamps.
+
+Override the config directory or recording root if needed:
+
+```bash
+python -m stixel_free_space.ma2_svo_player --ros-args \
+  -p scenario:=scen6 \
+  -p scenario_dir:=/path/to/configs/scenarios \
+  -p data_root:=/path/to/2023-07-11_Multi_ZED_Summer
+```
+
+An absolute YAML path also works as `scenario`. The YAML's `start_timestamp`
+does not change playback; the player continues to follow the bag's `/clock`.
 
 The MA2 player uses ZED SDK depth mode `NEURAL`.
 
