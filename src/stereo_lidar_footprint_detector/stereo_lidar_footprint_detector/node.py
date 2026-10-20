@@ -2,6 +2,7 @@
 
 import json
 import threading
+from copy import deepcopy
 from collections import deque
 
 import message_filters
@@ -49,7 +50,7 @@ class FootprintNode(Node):
             camera_info_topic="/ma2/zed/camera_info",
             lidar_topic="/lidar_aft/points",
             output_topic="/obstacles/json",
-            water_frame="",
+            water_frame="ma2_water_plane",
             max_stereo_depth_m=20.0,
             lidar_max_skew_s=0.5,
             require_lidar=False,
@@ -72,6 +73,9 @@ class FootprintNode(Node):
         self.slot = LatestSlot()
         self.stop_event = threading.Event()
         self.publisher = self.create_publisher(String, self.p["output_topic"], 10)
+        self.mask_pub = self.create_publisher(Image, "/obstacles/boat_mask", 10)
+        self.source_image_pub = self.create_publisher(Image, "/obstacles/source_image", 10)
+        self.bev_info_pub = self.create_publisher(CameraInfo, "/obstacles/camera_info", 10)
         self.marker_pub = self.create_publisher(
             MarkerArray,
             "/obstacles/markers",
@@ -238,6 +242,20 @@ class FootprintNode(Node):
             collection = self.backend.outputs.obstacle_collection(
                 result.obstacles, stamp_ns(image), frame_id
             )
+            # Publish the actual segmentation used by this result, rather than
+            # reconstructing a mask from an annotated RGB image or bounding box.
+            mask = np.ascontiguousarray(result.boat_mask > 0, dtype=np.uint8)
+            mask_msg = Image()
+            mask_msg.header = image.header
+            mask_msg.height, mask_msg.width = mask.shape
+            mask_msg.encoding = "mono8"
+            mask_msg.step = mask_msg.width
+            mask_msg.data = mask.tobytes()
+            matched_info = deepcopy(info)
+            matched_info.header = image.header
+            self.mask_pub.publish(mask_msg)
+            self.source_image_pub.publish(image)
+            self.bev_info_pub.publish(matched_info)
             self.publisher.publish(String(data=json.dumps(collection, allow_nan=False)))
             publish_obstacle_overlay(
                 self.obstacle_image_pub, left, result.obstacles,
