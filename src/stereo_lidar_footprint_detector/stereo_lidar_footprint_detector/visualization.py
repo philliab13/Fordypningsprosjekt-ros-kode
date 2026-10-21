@@ -1,7 +1,5 @@
 """ROS2 visualization helpers for YOLO depth overlays and water-plane footprints."""
 
-import cv2
-import numpy as np
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import Image
 from visualization_msgs.msg import Marker, MarkerArray
@@ -14,6 +12,9 @@ def publish_obstacle_overlay(publisher, image, obstacles, boxes, k, header,
     A configured water frame uses z=0. The synthetic right/forward plane
     omits height, so recover it from each detection's bottom edge and depth.
     """
+    import cv2
+    import numpy as np
+
     annotated = np.ascontiguousarray(image.copy())
     water_to_camera = (np.linalg.inv(camera_to_water)
                        if camera_to_water is not None else None)
@@ -64,6 +65,9 @@ def publish_obstacle_overlay(publisher, image, obstacles, boxes, k, header,
 
 def publish_yolo_overlay(publisher, result, header):
     """Publish annotated YOLO image with estimated obstacle depths."""
+    import cv2
+    import numpy as np
+
     if result.annotated_image is None:
         return
 

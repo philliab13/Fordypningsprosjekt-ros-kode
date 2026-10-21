@@ -108,3 +108,40 @@ is labelled `uncompensated`. Only ego motion is compensated; moving target boats
 can still smear across scans. Use `scan_count:=1` or a tighter time window to
 inspect that effect. The combined mask covers all detected boats; points are
 shown as one set, without per-instance association or hidden-surface filtering.
+# Synthetic obstacle for planner testing
+
+Build and run this publisher without starting the detector, cameras, LiDAR,
+YOLO, or bag playback:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+colcon build --merge-install --packages-select stereo_lidar_footprint_detector
+source install/setup.bash
+ros2 run stereo_lidar_footprint_detector test_obstacle_node
+```
+
+This publishes one boat (`class_id: 8`, `class_name: boat`, confidence 1.0)
+at 5 Hz on the existing `/obstacles/json` (`std_msgs/msg/String`) topic,
+with the detector's FeatureCollection/Polygon schema and fresh ROS timestamps.
+It also reuses `/obstacles/markers` for RViz. Stop the real detector while using
+this publisher to avoid mixing real and synthetic detections.
+
+The 2 m square is centred 10 m ahead of the frame origin, so its nearest edge
+is 9 m away. The default frame is `ma2_water_plane`; forward defaults to
+negative X (180 degrees), matching the approximate forward direction of the
+existing MA2 camera calibration. Its default centre is therefore (-10, 0).
+The footprint stays fixed relative to that frame as the vessel moves.
+For a frame with positive X forward, set `forward_yaw_deg:=0.0` and the
+appropriate existing frame ID. No TF frames are created by this node; retain
+the existing TF providers if downstream consumers require transforms.
+
+```bash
+ros2 run stereo_lidar_footprint_detector test_obstacle_node --ros-args \
+  -p distance_m:=10.0 -p side_length_m:=2.0 -p publish_rate_hz:=5.0
+ros2 topic echo /obstacles/json std_msgs/msg/String --once
+```
+
+Keep the existing planner bridge/subscribers running. This node replaces the
+perception publisher only; the planner bridge is not provided in this workspace.
+Use wall time by default when no `/clock` provider is running. For simulation
+or playback with an active clock, pass `-p use_sim_time:=true` consistently.
