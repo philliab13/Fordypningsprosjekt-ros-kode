@@ -1,6 +1,7 @@
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
+#files/2023-07-11_12-20-43_28170706_HD1080_FPS15.svo scenario Target undocking (MA2 driving faster, MA2 starting further away)
 ROOT = (
     Path.home()
     / "Documents/Data_For_Stixel_based_Free_space_estimation"
@@ -8,7 +9,7 @@ ROOT = (
 )
 
 FILES = [
-    ROOT / "Spatial Dual/SpatialDualLog_23-07-11_10-21-15/GoogleEarthTrack.kml",
+    ROOT / "Spatial Dual/SpatialDualLog_23-07-11_10-21-15/GoogleEarthTrack.kml", 
     ROOT / "KBox2/LOG00054.kml",
     ROOT / "KBox1/LOG00030.kml",
     ROOT / "NTBox/gnssdump-20230710173603.kml",

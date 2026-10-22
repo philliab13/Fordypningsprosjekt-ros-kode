@@ -85,3 +85,34 @@ def test_source_timestamps_match_independent_of_arrival_order():
         bev_node.BevNode.store(harness, timestamp, kind, kind)
     assert set(harness.pending[2]) == {'arrival', 'mask', 'info', 'footprints', 'rgb'}
     assert set(harness.pending[1]) == {'arrival', 'footprints', 'rgb'}
+
+
+@pytest.mark.parametrize('axes', ['ned', 'enu'])
+def test_gnss_camera_offset_axes_and_missing_pose(axes):
+    body_from_camera = np.array([[0., 0., 1., 2.],
+                                 [1., 0., 0., 1.],
+                                 [0., 1., 0., -1.],
+                                 [0., 0., 0., 1.]])
+    pose = np.array([0., 0., 0., 0., 0., 0., 1.])
+    if axes == 'enu':
+        # This rotation maps NED body coordinates into an ENU world.
+        pose[3:] = [np.sqrt(.5), np.sqrt(.5), 0, 0]
+    harness = SimpleNamespace(
+        gnss_tracks=[('test receiver', (1, 2, 3), SimpleNamespace(
+            at=lambda *args: np.array([12., 4., 0.])))],
+        poses=[(1_000_000_000, pose)],
+        p=dict(pose_max_gap_s=.5, gnss_pose_axes=axes,
+               gnss_body_frame='body', gnss_time_offset_s=0.,
+               gnss_max_gap_s=2., piren_lla=[63., 10., 40.]),
+        lookup=lambda *args: body_from_camera)
+    header = Header(frame_id='camera')
+    header.stamp.sec = 1
+    references, status = bev_node.BevNode.gnss_overlay(
+        harness, 1_000_000_000, header, body_from_camera)
+    np.testing.assert_allclose(references[0]['xy'], [3, 10], atol=1e-10)
+    assert 'GNSS 1/1' in status
+    assert references[0]['label'] == 'test receiver'
+    references, status = bev_node.BevNode.gnss_overlay(
+        harness, 2_000_000_000, header, body_from_camera)
+    assert references == []
+    assert 'no matching pose' in status

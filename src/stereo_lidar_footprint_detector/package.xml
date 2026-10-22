@@ -10,7 +10,9 @@
   <exec_depend>message_filters</exec_depend>
   <exec_depend>tf2_ros</exec_depend><exec_depend>stixel_free_space</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-pyqt5</exec_depend>
   <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <test_depend>python3-pytest</test_depend>

@@ -6,6 +6,7 @@ import json
 import time
 
 import numpy as np
+from geometry_msgs.msg import PoseStamped
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -21,6 +22,7 @@ from tf2_ros import Buffer, TransformListener
 from .bev import (closest_scans, local_geometry, mask_selection, render_bev,
                   render_lidar_overlay, scan_color)
 from .images import image_array
+from .gnss import DEFAULT_FILES, PIREN_LLA, interpolate_pose, load_track
 
 
 class BevNode(Node):
@@ -33,10 +35,25 @@ class BevNode(Node):
             rgb_output_topic='/debug/bev_lidar_overlay',
             output_topic='/debug/footprint_bev', scan_count=3, max_skew_s=0.2,
             scan_wait_s=0.2, range_m=60.0, size_px=900, fixed_frame='',
+            **DEFAULT_FILES,
+            gnss_enabled=True, gnss_pose_topic='/navigation/pose',
+            gnss_body_frame='p0_floor', gnss_pose_axes='ned',
+            piren_lla=PIREN_LLA, gnss_max_gap_s=2.0, pose_max_gap_s=0.5,
+            gnss_time_offset_s=0.0, gps_utc_offset_s=18.0,
         )
         for name, value in defaults.items():
             self.declare_parameter(name, value)
         self.p = {name: self.get_parameter(name).value for name in defaults}
+        if (self.p['gnss_pose_axes'] not in ('ned', 'enu')
+                or len(self.p['piren_lla']) != 3
+                or not np.isfinite(self.p['piren_lla']).all()
+                or not -90 <= self.p['piren_lla'][0] <= 90
+                or not -180 <= self.p['piren_lla'][1] <= 180
+                or not all(np.isfinite(self.p[k]) and self.p[k] > 0
+                           for k in ('gnss_max_gap_s', 'pose_max_gap_s'))
+                or not all(np.isfinite(self.p[k]) for k in
+                           ('gnss_time_offset_s', 'gps_utc_offset_s'))):
+            raise ValueError('Invalid GNSS origin, pose axes or timing parameters')
         if (self.p['scan_count'] < 1 or self.p['scan_count'] > 100
                 or self.p['size_px'] < 300
                 or not all(np.isfinite(self.p[key]) and self.p[key] >= 0
@@ -44,6 +61,22 @@ class BevNode(Node):
                 or not np.isfinite(self.p['range_m']) or self.p['range_m'] <= 0):
             raise ValueError('Invalid BEV scan count, time window, size or range')
         self.clouds = deque(maxlen=100)
+        self.poses = deque(maxlen=6000)
+        self.gnss_tracks = []
+        if self.p['gnss_enabled']:
+            for key, label, color in [
+                    ('spatial_dual_file', 'Spatial Dual', (180, 30, 180)),
+                    ('kbox2_file', 'KBox2', (30, 110, 210)),
+                    ('kbox1_file', 'KBox1', (160, 120, 20)),
+                    ('ntbox_file', 'NTBox', (40, 140, 40))]:
+                if not self.p[key]:
+                    continue
+                try:
+                    track = load_track(self.p[key], self.p['gps_utc_offset_s'])
+                    self.gnss_tracks.append((label, color, track))
+                    self.get_logger().info(f'{label} GNSS: {track.source}')
+                except (OSError, ValueError, SyntaxError) as exc:
+                    self.get_logger().warning(f'{label} GNSS unavailable: {exc}')
         self.pending = OrderedDict()
         self.done = deque(maxlen=100)
         self.tf = Buffer(cache_time=Duration(seconds=30))
@@ -62,6 +95,10 @@ class BevNode(Node):
             self.create_subscription(Image, self.p['rgb_topic'],
                                      partial(self.receive, 'rgb'), 10),
         ]
+        if self.p['gnss_enabled']:
+            self.subscriptions_.append(self.create_subscription(
+                PoseStamped, self.p['gnss_pose_topic'], self.receive_pose,
+                qos_profile_sensor_data))
         self.timer = self.create_timer(0.05, self.flush)
         if not self.p['fixed_frame']:
             self.get_logger().info(
@@ -71,6 +108,47 @@ class BevNode(Node):
 
     def receive_cloud(self, msg):
         self.clouds.append((stamp_ns(msg), msg))
+
+    def receive_pose(self, msg):
+        pos, q = msg.pose.position, msg.pose.orientation
+        values = np.array([pos.x, pos.y, pos.z, q.x, q.y, q.z, q.w])
+        if np.isfinite(values).all() and np.linalg.norm(values[3:]) > 1e-8:
+            self.poses.append((stamp_ns(msg), values))
+
+    def gnss_overlay(self, timestamp, header, camera_to_water):
+        """Put horizontal GNSS positions through the existing BEV geometry."""
+        tracks = getattr(self, 'gnss_tracks', [])
+        if not tracks:
+            return [], ''
+        pose = interpolate_pose(self.poses, timestamp, self.p['pose_max_gap_s'])
+        if pose is None:
+            return [], ' | GNSS: no matching pose'
+        position, rotation = pose
+        if self.p['gnss_pose_axes'] == 'enu':
+            ned_from_enu = np.array([[0, 1, 0], [1, 0, 0], [0, 0, -1]])
+            position = ned_from_enu @ position
+            rotation = ned_from_enu @ rotation
+        try:
+            body_from_camera = self.lookup(self.p['gnss_body_frame'],
+                                           header.frame_id, header.stamp)
+        except Exception as exc:
+            self.get_logger().warning(f'GNSS camera transform unavailable: {exc}',
+                                      throttle_duration_sec=2.0)
+            return [], ' | GNSS: missing camera TF'
+        camera_from_body = np.linalg.inv(body_from_camera)
+        references = []
+        query = timestamp - round(self.p['gnss_time_offset_s'] * 1e9)
+        for label, color, track in tracks:
+            target = track.at(query, self.p['gnss_max_gap_s'], self.p['piren_lla'])
+            if target is None:
+                continue
+            # Ignore antenna altitude: this is a horizontal reference comparison.
+            target[2] = position[2]
+            body = rotation.T @ (target - position)
+            camera = camera_from_body[:3, :3] @ body + camera_from_body[:3, 3]
+            xy, _ = local_geometry([camera], {'features': []}, camera_to_water)
+            references.append(dict(label=label, color=color, xy=xy[0]))
+        return references, f' | GNSS {len(references)}/{len(tracks)}'
 
     def receive_footprints(self, msg):
         try:
@@ -178,10 +256,13 @@ class BevNode(Node):
         mode = ('ego-compensated' if self.p['fixed_frame'] else 'uncompensated')
         plane = 'water z=0' if camera_to_water is not None else 'optical X/Z plane'
         status = f'{len(selected)} scans [{skews}] ms | {mode} | {plane}'
+        references, gnss_status = BevNode.gnss_overlay(
+            self, timestamp, mask_msg.header, camera_to_water)
+        status += gnss_status
         image = render_bev(
             points, rings, status, self.p['size_px'], self.p['range_m'],
             point_colors=np.concatenate(colors) if colors else np.empty((0, 3)),
-            scan_legend=legend)
+            scan_legend=legend, gnss_references=references)
         rgb_overlay = render_lidar_overlay(rgb, projections, legend, status)
         for publisher, array in [(self.publisher, image), (self.rgb_publisher, rgb_overlay)]:
             msg = Image()

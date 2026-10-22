@@ -11,4 +11,5 @@ setup(name='stereo_lidar_footprint_detector', version='0.1.0',
       entry_points={'console_scripts': [
           'footprint_node = stereo_lidar_footprint_detector.node:main',
           'test_obstacle_node = stereo_lidar_footprint_detector.test_obstacle_node:main',
-          'bev_node = stereo_lidar_footprint_detector.bev_node:main']})
+          'bev_node = stereo_lidar_footprint_detector.bev_node:main',
+          'frame_review_node = stereo_lidar_footprint_detector.frame_review_node:main']})

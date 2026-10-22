@@ -112,7 +112,7 @@ def local_geometry(camera_xyz, obstacles, camera_to_water=None):
 
 
 def render_bev(points, rings, status, size_px=900, range_m=60.0,
-               point_colors=None, scan_legend=None):
+               point_colors=None, scan_legend=None, gnss_references=None):
     """Equal metre scales, camera origin and filled outlines, like plot_bev."""
     image = np.full((size_px, size_px, 3), 250, dtype=np.uint8)
     legend = scan_legend or []
@@ -164,9 +164,19 @@ def render_bev(points, rings, status, size_px=900, range_m=60.0,
                & (points[:, 1] >= ymin) & (points[:, 1] <= ymin + range_m))
     for point, color in zip(pixel(points[visible]), colors[visible]):
         cv2.circle(image, tuple(point), 2, tuple(int(c) for c in color), -1, cv2.LINE_AA)
+    for reference in gnss_references or []:
+        xy = np.asarray(reference['xy'])
+        if (not np.isfinite(xy).all() or not xmin <= xy[0] <= xmin + range_m
+                or not ymin <= xy[1] <= ymin + range_m):
+            continue
+        location = pixel([xy])[0]
+        cv2.drawMarker(image, tuple(location), reference['color'],
+                       cv2.MARKER_CROSS, 20, 3, cv2.LINE_AA)
+        text(reference['label'], (int(location[0]) + 12, int(location[1]) - 8),
+             reference['color'])
     cv2.drawMarker(image, tuple(pixel([[0, 0]])[0]), (0, 150, 0),
                    cv2.MARKER_TRIANGLE_UP, 16, 2)
-    text('LiDAR by scan | Footprints (orange) | Camera (green)', (15, 25))
+    text('LiDAR by scan | Footprints (orange) | Camera (green) | GNSS (+)', (15, 25))
     text(status, (15, 46), scale=0.4)
     draw_scan_legend(image, legend)
     text('Right [m]', (size_px // 2 - 30, size_px - 15))
