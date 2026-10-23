@@ -1,0 +1,36 @@
+{
+  "timestamp_ns": 1689070909810434579,
+  "topics": {
+    "camera": "/obstacles/source_image",
+    "yolo": "/debug/yolo_overlay",
+    "lidar": "/debug/bev_lidar_overlay",
+    "bev": "/debug/footprint_bev"
+  },
+  "frame_ids": {
+    "yolo": "ma2_zed_left_optical",
+    "camera": "ma2_zed_left_optical",
+    "bev": "ma2_zed_left_optical",
+    "lidar": "ma2_zed_left_optical"
+  },
+  "dimensions_hw": {
+    "camera": [
+      1080,
+      1920
+    ],
+    "yolo": [
+      1080,
+      1920
+    ],
+    "lidar": [
+      1080,
+      1920
+    ],
+    "bev": [
+      900,
+      900
+    ]
+  },
+  "buffer_encoding": "JPEG",
+  "jpeg_quality": 90,
+  "note": "PNG exports decode the compressed review buffer; JPEG compression is lossy."
+}
