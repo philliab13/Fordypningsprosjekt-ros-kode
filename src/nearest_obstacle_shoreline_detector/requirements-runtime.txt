@@ -1,0 +1,10 @@
+# Use the existing ROS-compatible CUDA environment. Install a PyTorch build
+# matching the local CUDA setup; these names do not choose a CUDA wheel index.
+numpy
+scipy
+opencv-python
+numba
+open3d
+torch
+torchvision
+ultralytics

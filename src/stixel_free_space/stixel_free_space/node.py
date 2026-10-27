@@ -97,6 +97,7 @@ class StixelNode(Node):
         self.markers_pub = self.create_publisher(MarkerArray, '~/markers', 1)
         self.overlay_pub = self.create_publisher(Image, '~/overlay', 1)
         self.water_pub = self.create_publisher(Image, '~/water_mask', 1)
+        self.validated_water_pub = self.create_publisher(Image, '~/validated_water_mask', 1)
         self.depth_pub = self.create_publisher(Image, '~/depth', 1)
         self.diagnostic_pub = self.create_publisher(
             DiagnosticArray, '~/diagnostics', 1)
@@ -171,6 +172,12 @@ class StixelNode(Node):
             self.worker.start()
         self.get_logger().info(
             'Original stixel pipeline adapter started; see ~/diagnostics for readiness and timings')
+
+    def publish_validated_water(self, header, result):
+        """Always publish accepted masks; rejected frames clear downstream barriers."""
+        mask = np.zeros_like(result.water_mask, dtype=np.uint8) if result.water_mask_failure else (
+            (result.water_mask != 0).astype(np.uint8) * 255)
+        self.validated_water_pub.publish(self.numpy_to_image_msg(mask, 'mono8', header))
 
     def _validate(self):
         for key in ('stereo_slop_s', 'lidar_max_skew_s', 'max_input_age_s', 'tf_wait_s',
@@ -676,6 +683,7 @@ class StixelNode(Node):
                 )
             )
 
+        self.publish_validated_water(left_msg.header, result)
         if self.p['publish_images']:
             for publisher, array, encoding in (
                 (
@@ -854,6 +862,7 @@ class StixelNode(Node):
         if self.p['publish_markers']:
             self.markers_pub.publish(marker_message(
                 left_msg.header, stixels, k, self.p['marker_lifetime_s']))
+        self.publish_validated_water(left_msg.header, result)
         if self.p['publish_images']:
             for publisher, array, encoding in (
                 (self.overlay_pub, overlay_image(left, result, stixels), 'bgr8'),
