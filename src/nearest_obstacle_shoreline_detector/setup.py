@@ -14,5 +14,6 @@ setup(
     description='LiDAR-ranged shoreline barriers from fused water segmentation',
     license='Apache-2.0',
     entry_points={'console_scripts': [
-        'shoreline_node = nearest_obstacle_shoreline_detector.node:main']},
+        'shoreline_node = nearest_obstacle_shoreline_detector.node:main',
+        'lidar_projection_node = nearest_obstacle_shoreline_detector.lidar_projection_node:main']},
 )

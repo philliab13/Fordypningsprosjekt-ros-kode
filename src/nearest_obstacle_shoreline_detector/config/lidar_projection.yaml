@@ -1,0 +1,9 @@
+lidar_water_projection:
+  ros__parameters:
+    lidar_topic: /lidar_aft/points
+    # Must be a TF frame with vertical +Z; water lies at water_level_m.
+    water_frame: ma2_water_plane
+    water_level_m: 0.0
+    min_height_m: 0.0
+    # Exclusive upper limit: keep heights strictly less than 2 metres.
+    max_height_m: 2.0

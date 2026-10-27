@@ -1,4 +1,51 @@
-# Standalone shoreline barrier node
+# Shoreline detector experiments
+
+## LiDAR-only projection (no ML)
+
+This separate first-stage experiment takes LiDAR points, transforms them into
+the water frame, keeps heights `0 <= h < 2` metres above water, and flattens them
+onto the water plane. There is no camera input, model loading, clustering,
+polyline extraction, or dependence on the footprint/segmentation nodes.
+
+```bash
+colcon build --symlink-install --packages-select nearest_obstacle_shoreline_detector
+source install/setup.bash
+ros2 launch nearest_obstacle_shoreline_detector lidar_projection.launch.py
+```
+
+For bag playback add `use_sim_time:=true`. Parameters are in
+`config/lidar_projection.yaml`: `lidar_topic`, `water_frame`, `water_level_m`,
+`min_height_m`, and `max_height_m` (exclusive). The defaults are `/lidar_aft/points`,
+`ma2_water_plane`, water z=0, and the height interval [0, 2) metres. Filtering is
+performed after transforming, so boat tilt and sensor mounting height are
+handled by TF rather than by treating raw sensor Z as height above water.
+The horizontal water frame must have vertical +Z and be connected to LiDAR TF
+at the scan timestamp. This node does not estimate the water plane; provide that
+frame and elevation independently. No RWPS or FastSAM is involved.
+
+In RViz set Fixed Frame to `ma2_water_plane` (or another connected frame), add a
+**PointCloud2** display, and select:
+
+- `/lidar_water_projection/projected_points`: retained points flattened onto water.
+- `/lidar_water_projection/filtered_points`: the same points at their original
+  heights, expressed in the water frame, for comparison.
+
+Both clouds carry an extra `height_above_water` field holding the height before
+flattening. Use the Intensity color transformer and select this field to see the
+original height as color. A top-down view helps inspect point coverage. Use
+Decay Time=0 to show the current cloud without accumulation. Only XYZ and this
+height field are published; original intensity/ring fields are not retained.
+Output stamps match the input scans. Invalid points are removed; missing TF
+or invalid input produces empty clouds and a throttled warning. If input stops,
+the last cloud remains visible until another message arrives or RViz is reset.
+
+This shows every retained point, including boats, vegetation and points inland.
+It does not yet identify the nearest shore or create a barrier.
+
+The projection executable needs only ROS, NumPy, SciPy and TF. The ML runtime
+requirements listed below apply to the separate segmentation executable.
+
+## Standalone segmentation-based shoreline barrier node
 
 Runs RWPS + FastSAM water segmentation itself, using the existing implementations
 in the `free-space-estimation` checkout. No running stixel node or installed
