@@ -1,0 +1,8 @@
+# Reuse the ROS-compatible footprint environment; choose PyTorch for your CUDA setup.
+numpy
+scipy
+opencv-python
+torch
+torchvision
+ultralytics
+# The optional frame-review GUI uses system python3-pyqt5 (see package.xml).

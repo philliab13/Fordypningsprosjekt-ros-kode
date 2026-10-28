@@ -1,22 +1,25 @@
-"""Load the footprint repository without dependencies."""
-
-import importlib
+"""Adapter for the footprint pipeline bundled in this ROS package."""
 from pathlib import Path
-import sys
+
+from .detection import outputs, pipeline
 
 
 class PipelineBackend:
-    def __init__(self, repo_path, **options):
-        root = Path(repo_path).expanduser().resolve()
-        if not (root / "free_space/pipeline.py").is_file():
-            raise ValueError(f"No footprint pipeline at {root}")
-        sys.path.insert(0, str(root))
-        self.module = importlib.import_module("free_space.pipeline")
-        if Path(self.module.__file__).resolve() != root / "free_space/pipeline.py":
-            raise RuntimeError(
-                "Another free_space package is loaded; use a separate ROS process"
-            )
-        self.outputs = importlib.import_module("free_space.outputs")
+    def __init__(self, **options):
+        self.module = pipeline
+        self.outputs = outputs
+        if options.get('detector') is None:
+            weights = options.get('yolo_weights')
+            if weights:
+                path = Path(weights).expanduser().resolve()
+            else:
+                from ament_index_python.packages import get_package_share_directory
+                path = (Path(get_package_share_directory('stereo_lidar_footprint_detector'))
+                        / 'weights/yolo26n-seg.pt')
+            if not path.is_file():
+                raise ValueError(f'Missing YOLO weights: {path}. Set the weights parameter '
+                                 'to an existing checkpoint; weights are not stored in Git.')
+            options['yolo_weights'] = str(path)
         self.options = options
         self.pipeline = None
 

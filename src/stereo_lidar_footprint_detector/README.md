@@ -16,6 +16,42 @@ After rebuilding and restarting the node, open the viewer with:
 ros2 run rqt_image_view rqt_image_view /debug/obstacle_overlay
 ```
 
+## Self-contained footprint detector
+
+The YOLO wrapper, per-frame pipeline, sensor-depth fusion, footprint geometry,
+and JSON helpers live in `stereo_lidar_footprint_detector/detection`. The node
+no longer imports the separate footprint repository or modifies `sys.path`.
+Remove `-p repo_path:=...` from old commands; that parameter is no longer used.
+See `DETECTION_SOURCES.md` for the source revision. The `stixel_free_space`
+package in this workspace still supplies shared ROS helpers and MA2 calibration.
+
+For example, after building with your chosen footprint environment and sourcing
+the workspace, run:
+
+```bash
+ros2 run stereo_lidar_footprint_detector footprint_node --ros-args \
+  -p use_sim_time:=true \
+  -p baseline_m:=0.12 \
+  -p max_stereo_depth_m:=20.0 \
+  -p lidar_max_skew_s:=0.5 \
+  -p water_frame:=ma2_water_plane
+```
+
+Empty `weights` selects `weights/yolo26n-seg.pt` in the installed package share
+directory. An explicit `-p weights:=/absolute/path/to/model.pt` overrides it;
+relative paths are resolved from the process's working directory. Missing files
+produce a startup error rather than an implicit model download.
+
+Model files are local assets, excluded from Git by `weights/.gitignore`. The
+existing workspace checkpoint has been copied there on this machine. On another
+machine, obtain the checkpoint and put it in
+`src/stereo_lidar_footprint_detector/weights/yolo26n-seg.pt` before building, or
+pass an explicit existing path. Available local checkpoints are installed by
+`setup.py`. Runtime Python dependencies are listed in `requirements-runtime.txt`;
+the existing `.venv-footprint` contains them. No environment changes are needed
+for this migration. Topic schemas, footprint geometry, GNSS handling, and boat
+class selection are unchanged.
+
 ## Build environment
 
 When building inside `.venv-footprint`, use the workspace's compatible setuptools

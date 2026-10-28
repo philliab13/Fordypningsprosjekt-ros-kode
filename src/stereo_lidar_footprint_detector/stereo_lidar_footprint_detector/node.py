@@ -41,7 +41,6 @@ class FootprintNode(Node):
     def __init__(self):
         super().__init__("stereo_lidar_footprint_detector")
         defaults = dict(  # noqa: C408
-            repo_path="",
             baseline_m=0.0,
             weights="",
             device="",
@@ -61,7 +60,6 @@ class FootprintNode(Node):
         if not np.isfinite(self.p["baseline_m"]) or self.p["baseline_m"] <= 0:
             raise ValueError("Set baseline_m to the actual stereo baseline in meters")
         self.backend = PipelineBackend(
-            self.p["repo_path"],
             yolo_weights=self.p["weights"] or None,
             device=self.p["device"] or None,
             max_stereo_depth=self.p["max_stereo_depth_m"],
