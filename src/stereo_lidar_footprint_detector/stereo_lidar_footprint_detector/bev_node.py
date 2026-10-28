@@ -34,6 +34,8 @@ class BevNode(Node):
             rgb_topic='/obstacles/source_image',
             rgb_output_topic='/debug/bev_lidar_overlay',
             output_topic='/debug/footprint_bev', scan_count=3, max_skew_s=0.2,
+            shoreline_topic='/nearest_obstacle_shoreline_detector/barrier_json',
+            shoreline_fixed_frame='piren',
             scan_wait_s=0.2, range_m=60.0, size_px=900, fixed_frame='',
             **DEFAULT_FILES,
             gnss_enabled=True, gnss_pose_topic='/navigation/pose',
@@ -60,6 +62,8 @@ class BevNode(Node):
                            for key in ('max_skew_s', 'scan_wait_s'))
                 or not np.isfinite(self.p['range_m']) or self.p['range_m'] <= 0):
             raise ValueError('Invalid BEV scan count, time window, size or range')
+        if not self.p['shoreline_fixed_frame']:
+            raise ValueError('shoreline_fixed_frame must name a stationary TF frame')
         self.clouds = deque(maxlen=100)
         self.poses = deque(maxlen=6000)
         self.gnss_tracks = []
@@ -79,6 +83,9 @@ class BevNode(Node):
                     self.get_logger().warning(f'{label} GNSS unavailable: {exc}')
         self.pending = OrderedDict()
         self.done = deque(maxlen=100)
+        self.shorelines = OrderedDict()
+        self.held_shoreline = None
+        self.rendered_jobs = OrderedDict()
         self.tf = Buffer(cache_time=Duration(seconds=30))
         self.listener = TransformListener(self.tf, self)
         self.publisher = self.create_publisher(Image, self.p['output_topic'], 10)
@@ -95,6 +102,9 @@ class BevNode(Node):
             self.create_subscription(Image, self.p['rgb_topic'],
                                      partial(self.receive, 'rgb'), 10),
         ]
+        if self.p['shoreline_topic']:
+            self.subscriptions_.append(self.create_subscription(
+                String, self.p['shoreline_topic'], self.receive_shoreline, 10))
         if self.p['gnss_enabled']:
             self.subscriptions_.append(self.create_subscription(
                 PoseStamped, self.p['gnss_pose_topic'], self.receive_pose,
@@ -163,6 +173,38 @@ class BevNode(Node):
     def receive(self, kind, msg):
         self.store(stamp_ns(msg), kind, msg)
 
+    def receive_shoreline(self, msg):
+        try:
+            data = json.loads(msg.data)
+            stamp = data['stamp']
+            if (not isinstance(data['frame_id'], str) or not data['frame_id']
+                    or type(stamp['sec']) is not int or type(stamp['nanosec']) is not int
+                    or not 0 <= stamp['nanosec'] < 1_000_000_000):
+                raise ValueError('Invalid shoreline frame or timestamp')
+            timestamp = stamp['sec'] * 1_000_000_000 + stamp['nanosec']
+            segments = np.asarray(data['segments'], dtype=float)
+            if segments.size == 0:
+                segments = np.empty((0, 2, 3))
+            if segments.ndim != 3 or segments.shape[1:] != (2, 3) or not np.isfinite(segments).all():
+                raise ValueError('Expected finite shoreline endpoint pairs in XYZ')
+            if not len(segments):
+                return  # Missing measurements do not erase the retained outline.
+            self.shorelines[timestamp] = (data['frame_id'], segments)
+            while len(self.shorelines) > 100:
+                self.shorelines.popitem(last=False)
+            # Inference can finish after the matching footprint BEV was drawn.
+            # Redraw the acquisition frame and motion-compensate into the latest view.
+            job = self.rendered_jobs.get(timestamp)
+            if job is not None:
+                self.publish_frame(timestamp, job)
+            if self.rendered_jobs:
+                latest_stamp = max(self.rendered_jobs)
+                if latest_stamp > timestamp:
+                    self.publish_frame(latest_stamp, self.rendered_jobs[latest_stamp])
+        except Exception as exc:
+            self.get_logger().warning(f'BEV shoreline unavailable: {exc}',
+                                      throttle_duration_sec=2.0)
+
     def store(self, timestamp, kind, value):
         if timestamp in self.done:
             return
@@ -200,6 +242,44 @@ class BevNode(Node):
             else:
                 self.done.append(timestamp)
             self.pending.pop(timestamp)
+
+    def shoreline_overlay(self, timestamp, header, camera_to_water):
+        """Anchor measurements in a stationary frame; project at image time."""
+        empty = np.empty((0, 2, 2))
+        shorelines = getattr(self, 'shorelines', {})
+        candidates = [stamp for stamp in shorelines if stamp <= timestamp]
+        shore_stamp = max(candidates) if candidates else None
+        held = getattr(self, 'held_shoreline', None)
+        fixed = self.p['shoreline_fixed_frame']
+        note = ''
+        if shore_stamp is not None and (held is None or shore_stamp > held[0]):
+            source, segments = shorelines[shore_stamp]
+            try:
+                fixed_from_shore = self.lookup(
+                    fixed, source, Time(nanoseconds=shore_stamp).to_msg())
+                world = (segments.reshape(-1, 3) @ fixed_from_shore[:3, :3].T
+                         + fixed_from_shore[:3, 3])
+                held = (shore_stamp, world.reshape(-1, 2, 3))
+                self.held_shoreline = held
+            except Exception as exc:
+                # Keep the previous world geometry and retry the new measurement later.
+                note = ' | Shore update: missing TF'
+                self.get_logger().warning(f'BEV shoreline anchor unavailable: {exc}',
+                                          throttle_duration_sec=2.0)
+        if held is None or held[0] > timestamp:
+            return empty, note
+        age = (timestamp - held[0]) / 1e9
+        try:
+            camera_from_fixed = self.lookup(header.frame_id, fixed, header.stamp)
+            camera = (held[1].reshape(-1, 3) @ camera_from_fixed[:3, :3].T
+                      + camera_from_fixed[:3, 3])
+            xy, _ = local_geometry(camera, {'features': []}, camera_to_water)
+        except Exception as exc:
+            self.get_logger().warning(f'BEV shoreline projection unavailable: {exc}',
+                                      throttle_duration_sec=2.0)
+            return empty, note + f' | Shore: missing TF (age={age:.1f}s)'
+        return xy.reshape(-1, 2, 2), (note + f' | Shore {len(held[1])} segments '
+                                    f'age={age:.1f}s (held, ego-compensated)')
 
     def publish_frame(self, timestamp, job):
         mask_msg, info = job['mask'], job['info']
@@ -259,10 +339,14 @@ class BevNode(Node):
         references, gnss_status = BevNode.gnss_overlay(
             self, timestamp, mask_msg.header, camera_to_water)
         status += gnss_status
+        shoreline_xy, shoreline_status = BevNode.shoreline_overlay(
+            self, timestamp, mask_msg.header, camera_to_water)
+        status += shoreline_status
         image = render_bev(
             points, rings, status, self.p['size_px'], self.p['range_m'],
             point_colors=np.concatenate(colors) if colors else np.empty((0, 3)),
-            scan_legend=legend, gnss_references=references)
+            scan_legend=legend, gnss_references=references,
+            shoreline_segments=shoreline_xy)
         rgb_overlay = render_lidar_overlay(rgb, projections, legend, status)
         for publisher, array in [(self.publisher, image), (self.rgb_publisher, rgb_overlay)]:
             msg = Image()
@@ -272,6 +356,10 @@ class BevNode(Node):
             msg.step = msg.width * 3
             msg.data = array.tobytes()
             publisher.publish(msg)
+        if hasattr(self, 'rendered_jobs'):
+            self.rendered_jobs[timestamp] = job
+            while len(self.rendered_jobs) > 20:
+                self.rendered_jobs.popitem(last=False)
 
 
 def main(args=None):

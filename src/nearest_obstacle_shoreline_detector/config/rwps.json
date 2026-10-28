@@ -1,0 +1,13 @@
+{
+    "RANSAC": {
+        "distance_threshold": 0.05,
+        "ransac_n": 3,
+        "num_iterations": 10,
+        "probability": 0.999999
+    },
+    "plane_validation": {
+        "height_thr": 0.1,
+        "angle_thr": 5,
+        "min_inliers": 100
+    }
+}

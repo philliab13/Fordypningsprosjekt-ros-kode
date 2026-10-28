@@ -76,3 +76,15 @@ def test_rgb_overlay_scan_colors_and_faint_background():
                      point_colors=[color], scan_legend=[('S1: +10 ms', color)])
     # The same exact scan colour is present in both rasters.
     assert np.any(np.all(bev == color, axis=2))
+
+
+def test_shoreline_segments_remain_open_and_are_clipped_to_plot():
+    segments = [[[-100, 5], [-2, 5]], [[2, 5], [100, 5]]]
+    image = render_bev([], [], 'test', size_px=400, range_m=20,
+                       shoreline_segments=segments)
+    # With no scan legend the plot margin is 65, scale is 13.5 px/metre.
+    y = round(400 - 65 - (5 + 2) * 13.5)
+    np.testing.assert_array_equal(image[y, 140], [0, 0, 220])
+    np.testing.assert_array_equal(image[y, 260], [0, 0, 220])
+    assert not np.array_equal(image[y, 200], [0, 0, 220])  # unsupported gap
+    assert not np.array_equal(image[y, 50], [0, 0, 220])  # outside plot

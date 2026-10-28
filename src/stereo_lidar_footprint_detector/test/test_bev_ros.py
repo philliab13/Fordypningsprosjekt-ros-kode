@@ -15,7 +15,8 @@ from stereo_lidar_footprint_detector import bev_node
 
 
 @pytest.mark.parametrize('with_scans', [True, False])
-def test_real_cloud_mask_and_footprint_messages(monkeypatch, with_scans):
+@pytest.mark.parametrize('with_shoreline', [True, False])
+def test_real_cloud_mask_and_footprint_messages(monkeypatch, with_scans, with_shoreline):
     header = Header(frame_id='camera')
     header.stamp.sec = 1
     cloud = point_cloud2.create_cloud_xyz32(header, [[0, 0, 5], [1, 0, 5]])
@@ -38,9 +39,16 @@ def test_real_cloud_mask_and_footprint_messages(monkeypatch, with_scans):
     harness = SimpleNamespace(
         clouds=([(1_000_000_000, cloud), (1_050_000_000, later_cloud)]
                 if with_scans else []),
-        p=dict(scan_count=3, max_skew_s=0.2, fixed_frame='', size_px=400, range_m=20.),
+        p=dict(scan_count=3, max_skew_s=0.2, fixed_frame='', shoreline_fixed_frame='piren', size_px=400, range_m=20.),
         publisher=SimpleNamespace(publish=output.append),
         rgb_publisher=SimpleNamespace(publish=rgb_output.append))
+    if with_shoreline:
+        harness.shorelines = {1_000_000_000: (
+            'water_up', np.array([[[1., 2., 3.], [4., 5., 6.]]]))}
+        camera_from_water = np.eye(4)
+        camera_from_water[:3, 3] = [10., 20., 30.]
+        harness.lookup = lambda target, source, stamp: (
+            np.eye(4) if target == 'piren' else camera_from_water)
     monkeypatch.setattr(bev_node, 'H_POINTS_ZED_FROM_LIDAR', np.eye(4))
 
     def render(points, rings, status, size, span, **kwargs):
@@ -69,6 +77,8 @@ def test_real_cloud_mask_and_footprint_messages(monkeypatch, with_scans):
         assert overlays[0][1] == []
     np.testing.assert_array_equal(overlays[0][0][0, 0], [30, 20, 10])
     assert len(output) == 1
+    expected = [[[11, 33], [14, 36]]] if with_shoreline else np.empty((0, 2, 2))
+    np.testing.assert_allclose(geometry[0][3]['shoreline_segments'], expected)
     assert output[0].header == header
     assert output[0].encoding == 'bgr8'
     assert len(output[0].data) == 400 * 400 * 3
@@ -76,6 +86,22 @@ def test_real_cloud_mask_and_footprint_messages(monkeypatch, with_scans):
     assert rgb_output[0].header == output[0].header
     assert rgb_output[0].encoding == 'bgr8'
     assert len(rgb_output[0].data) == 100 * 100 * 3
+    if with_shoreline:
+        harness.shorelines.clear()  # retained geometry no longer needs old TF
+        calls = []
+        def current_tf(target, source, stamp):
+            calls.append((target, source, stamp.sec))
+            assert (target, source) == ('camera', 'piren')
+            moved = camera_from_water.copy()
+            moved[:3, 3] -= [2., 0., 1.]
+            return moved
+        harness.lookup = current_tf
+        mask.header.stamp.sec = 3
+        bev_node.BevNode.publish_frame(harness, 3_000_000_000,
+            dict(mask=mask, info=info, footprints=collection, rgb=rgb))
+        np.testing.assert_allclose(geometry[-1][3]['shoreline_segments'], [[[9, 32], [12, 35]]])
+        assert calls == [('camera', 'piren', 3)]
+        assert 'age=2.0s (held, ego-compensated)' in geometry[-1][2]
 
 
 def test_source_timestamps_match_independent_of_arrival_order():
@@ -116,3 +142,84 @@ def test_gnss_camera_offset_axes_and_missing_pose(axes):
         harness, 2_000_000_000, header, body_from_camera)
     assert references == []
     assert 'no matching pose' in status
+
+
+def test_late_shoreline_redraws_current_frame_and_empty_retains():
+    import json
+    from std_msgs.msg import String
+    rendered, warnings = [], []
+    harness = SimpleNamespace(
+        shorelines=OrderedDict(), rendered_jobs=OrderedDict([(10, 'frame10'), (20, 'frame20')]),
+        publish_frame=lambda stamp, job: rendered.append((stamp, job)),
+        get_logger=lambda: SimpleNamespace(warning=lambda *args, **kwargs: warnings.append(args)))
+
+    def receive(timestamp, segments, status='ok'):
+        msg = String(data=json.dumps(dict(frame_id='water',
+            stamp=dict(sec=0, nanosec=timestamp), segments=segments, status=status)))
+        bev_node.BevNode.receive_shoreline(harness, msg)
+
+    receive(10, [[[1, 2, 0], [3, 4, 0]]])
+    assert rendered == [(10, 'frame10'), (20, 'frame20')]
+    np.testing.assert_array_equal(harness.shorelines[10][1], [[[1, 2, 0], [3, 4, 0]]])
+    receive(11, [])
+    assert len(rendered) == 2  # empty update leaves held geometry intact
+    receive(10, [])
+    assert harness.shorelines[10][1].shape == (1, 2, 3)
+    receive(30, [], status='input timeout')
+    assert 10 in harness.shorelines
+    assert rendered[-1] == (20, 'frame20')
+    receive(10, [[[1, 2], [3, 4]]])
+    assert warnings  # malformed endpoint dimensions are rejected
+
+
+def test_world_shoreline_rotation_tf_loss_and_replacement():
+    warnings, calls = [], []
+    # Optical right is world +X; optical forward is world +Y.
+    water_from_camera = np.array([[1., 0., 0., 0.], [0., 0., 1., 0.],
+                                 [0., -1., 0., 2.], [0., 0., 0., 1.]])
+    pose = water_from_camera.copy()
+    fail = set()
+    def lookup(target, source, stamp):
+        calls.append((target, source, stamp.sec))
+        if (target, source) in fail:
+            raise RuntimeError('TF unavailable')
+        if target == 'piren':
+            return np.eye(4)
+        return np.linalg.inv(pose)
+    harness = SimpleNamespace(
+        p=dict(shoreline_fixed_frame='piren'), held_shoreline=None,
+        shorelines={1_000_000_000: ('water', np.array([[[2., 10., 0.], [4., 10., 0.]]]))},
+        lookup=lookup,
+        get_logger=lambda: SimpleNamespace(warning=lambda *args, **kwargs: warnings.append(args)))
+    header = Header(frame_id='camera')
+    header.stamp.sec = 1
+    xy, _ = bev_node.BevNode.shoreline_overlay(harness, 1_000_000_000, header, water_from_camera)
+    np.testing.assert_allclose(xy, [[[2, 10], [4, 10]]])
+    anchor = harness.held_shoreline
+    # Vessel travels 3 m forward and turns 90 degrees left in the world XY plane.
+    rotation = np.array([[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]])
+    pose[:3, :3] = rotation @ water_from_camera[:3, :3]
+    pose[:3, 3] = [0., 3., 2.]
+    header.stamp.sec = 2
+    xy, status = bev_node.BevNode.shoreline_overlay(harness, 2_000_000_000, header, water_from_camera)
+    np.testing.assert_allclose(xy, [[[7, -2], [7, -4]]], atol=1e-10)
+    assert calls.count(('piren', 'water', 1)) == 1
+    assert 'age=1.0s' in status
+    fail.add(('camera', 'piren'))
+    xy, status = bev_node.BevNode.shoreline_overlay(harness, 2_000_000_000, header, water_from_camera)
+    assert xy.shape == (0, 2, 2) and 'missing TF' in status
+    assert harness.held_shoreline is anchor
+    fail.clear()
+    harness.shorelines[2_000_000_000] = ('water', np.array([[[0., 13., 0.], [0., 15., 0.]]]))
+    fail.add(('piren', 'water'))
+    xy, status = bev_node.BevNode.shoreline_overlay(harness, 2_000_000_000, header, water_from_camera)
+    np.testing.assert_allclose(xy, [[[7, -2], [7, -4]]], atol=1e-10)
+    assert 'update: missing TF' in status
+    fail.clear()
+    xy, _ = bev_node.BevNode.shoreline_overlay(harness, 2_000_000_000, header, water_from_camera)
+    np.testing.assert_allclose(xy, [[[10, 0], [12, 0]]], atol=1e-10)
+    assert harness.held_shoreline[0] == 2_000_000_000
+    # A cached older BEV must never display geometry from a future measurement.
+    harness.shorelines.clear()
+    xy, _ = bev_node.BevNode.shoreline_overlay(harness, 1_000_000_000, header, water_from_camera)
+    assert xy.shape == (0, 2, 2)

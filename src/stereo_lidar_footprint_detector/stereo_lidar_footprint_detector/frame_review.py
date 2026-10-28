@@ -62,7 +62,15 @@ class ReviewBuffer:
         with self.lock:
             self._expire(now)
             if timestamp in self.frames:
-                return
+                previous = self.frames[timestamp]
+                if previous.size - len(previous.images[panel]) + len(encoded) > self.limit:
+                    self.dropped += 1
+                    return
+                # Late shoreline inference republishes an existing BEV frame.
+                # Replace the immutable snapshot so paused views and exports update.
+                self.pending[timestamp] = dict(arrival=now,
+                    images=dict(previous.images), frame_ids=dict(previous.frame_ids))
+                del self.frames[timestamp]
             item = self.pending.setdefault(timestamp, dict(arrival=now, images={}, frame_ids={}))
             item['images'][panel] = encoded
             item['frame_ids'][panel] = frame_id

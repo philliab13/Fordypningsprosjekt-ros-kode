@@ -3,7 +3,6 @@ from collections import deque
 from dataclasses import fields
 import json
 import time
-from pathlib import Path
 import queue
 import threading
 
@@ -41,9 +40,10 @@ class ShorelineNode(Node):
         super().__init__('nearest_obstacle_shoreline_detector')
         defaults = dict(
             input_mode='standalone',
-            repo_path=str(Path.home() / 'Documents/NTNU/free-space-estimation'),
             left_topic='/obstacles/source_image', depth_topic='/ma2/zed/depth',
             sync_slop_s=0.03, camera_height_m=0.0, reset_gap_s=1.0,
+            log_timing=True,
+            hold_last_boundary=True,
             fastsam_weights='', rwps_config='',
             boat_mask_topic='/obstacles/boat_mask', sync_queue_size=20,
             remove_boats=True, retina_masks=True,
@@ -126,6 +126,11 @@ class ShorelineNode(Node):
                 left_msg, depth_msg, info, boat_mask = self.pending.get(timeout=0.1)
             except queue.Empty:
                 continue
+            pass_start = time.perf_counter()
+            init_ms = 0.0
+            segmentation_started = False
+            timings = {}
+            outcome = 'error'
             try:
                 self.validate_info(left_msg, info)
                 if (depth_msg.header.frame_id != left_msg.header.frame_id
@@ -145,19 +150,29 @@ class ShorelineNode(Node):
                 if height <= 0:
                     raise ValueError('Camera must be above the configured water plane')
                 if backend is None:
+                    init_start = time.perf_counter()
                     backend = WaterBackend(self.p)
+                    init_ms = (time.perf_counter() - init_start) * 1000
+                segmentation_started = True
+                stage_start = time.perf_counter()
                 mask = backend.segment(left, depth, np.asarray(info.k).reshape(3, 3),
                                        stamp_ns(left_msg), height)
+                timings['segmentation'] = (time.perf_counter() - stage_start) * 1000
+                stage_start = time.perf_counter()
                 if self.p['remove_boats']:
                     if boat_mask is None:
                         raise ValueError('Waiting for matching footprint boat mask')
                     mask = subtract_boats(mask, boat_mask, left_msg)
+                timings['boat_removal'] = (time.perf_counter() - stage_start) * 1000
                 if self.stop_event.is_set():
                     break
                 msg = Image(header=left_msg.header, height=mask.shape[0], width=mask.shape[1],
                             encoding='mono8', step=mask.shape[1], data=mask.tobytes())
+                stage_start = time.perf_counter()
                 self.water_pub.publish(msg)
                 self.receive_mask(msg, info)
+                timings['barrier_output'] = (time.perf_counter() - stage_start) * 1000
+                outcome = backend.last_status
             except Exception as exc:
                 if self.stop_event.is_set():
                     break
@@ -171,6 +186,19 @@ class ShorelineNode(Node):
                 self.publish(Header(stamp=left_msg.header.stamp, frame_id=self.p['water_frame']),
                              [], f'segmentation error: {exc}')
                 self.get_logger().error(str(exc), throttle_duration_sec=5.0)
+            finally:
+                if self.p['log_timing']:
+                    total_ms = (time.perf_counter() - pass_start) * 1000
+                    if segmentation_started:
+                        timings.update(backend.last_timings_ms)
+                    stages = ' '.join(
+                        f'{name}={timings[name]:.1f}ms' if name in timings else f'{name}=n/a'
+                        for name in ('rwps', 'fastsam', 'temporal', 'segmentation',
+                                     'boat_removal', 'barrier_output'))
+                    self.get_logger().info(
+                        f'Shoreline timing stamp_ns={stamp_ns(left_msg)} '
+                        f'total={total_ms:.1f}ms init={init_ms:.1f}ms '
+                        f'{stages} status={outcome}')
 
     @staticmethod
     def validate_info(msg, info):
@@ -238,6 +266,9 @@ class ShorelineNode(Node):
             self._publish(header, segments, status)
 
     def _publish(self, header, segments, status):
+        if not len(segments) and self.active and self.p['hold_last_boundary']:
+            # Keep the last measurement and its acquisition timestamp intact.
+            return
         markers = [Marker(header=header, action=Marker.DELETEALL)]
         if len(segments):
             marker = Marker(header=header, ns='shoreline', id=0,
@@ -245,7 +276,8 @@ class ShorelineNode(Node):
             marker.pose.orientation.w = 1.0
             marker.scale.x = self.p['marker_width_m']
             marker.color.r, marker.color.g, marker.color.b, marker.color.a = 1.0, 0.5, 0.0, 1.0
-            marker.lifetime = Duration(seconds=self.p['input_timeout_s']).to_msg()
+            marker.lifetime = Duration(seconds=(
+                0.0 if self.p['hold_last_boundary'] else self.p['input_timeout_s'])).to_msg()
             marker.points = [Point(x=float(x), y=float(y), z=float(z))
                              for segment in segments for x, y, z in segment]
             markers.append(marker)
@@ -260,6 +292,8 @@ class ShorelineNode(Node):
 
     def expire(self):
         with self.output_lock:
+            if self.p['hold_last_boundary']:
+                return
             if (self.active and self.last_success is not None
                     and time.monotonic() - self.last_success > self.p['input_timeout_s']):
                 self.publish(Header(stamp=self.get_clock().now().to_msg(), frame_id=self.p['water_frame']),

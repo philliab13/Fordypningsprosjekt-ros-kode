@@ -95,3 +95,20 @@ def test_export_all_panels_and_timestamp_without_overwriting(tmp_path):
     for panel in PANELS:
         assert cv2.imread(str(first / f'{panel}.png')).shape == image.shape
     assert cv2.imread(str(first / 'comparison.png')).shape == (960, 1280, 3)
+
+
+def test_late_bev_replaces_paused_snapshot_without_changing_other_panels():
+    buffer = ReviewBuffer(1000)
+    for panel in PANELS:
+        buffer.add(10, panel, b'original', frame_id='camera')
+    buffer.set_live(False)
+    old, _ = buffer.view()
+    buffer.add(10, 'bev', b'shoreline', frame_id='camera')
+    updated, status = buffer.view()
+    assert updated is not old
+    assert updated.timestamp_ns == old.timestamp_ns
+    assert updated.images['bev'] == b'shoreline'
+    assert old.images['bev'] == b'original'
+    assert updated.images['camera'] == old.images['camera']
+    assert status['count'] == 1
+    assert status['memory_bytes'] == updated.size

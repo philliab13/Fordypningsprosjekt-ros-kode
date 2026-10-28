@@ -1,8 +1,6 @@
 nearest_obstacle_shoreline_detector:
   ros__parameters:
     input_mode: standalone
-    # Set to the upstream free-space-estimation checkout on your ROS machine.
-    repo_path: ~/Documents/NTNU/free-space-estimation
     # Footprint source images carry the exact timestamps used for boat masks.
     left_topic: /obstacles/source_image
     depth_topic: /ma2/zed/depth
@@ -12,16 +10,22 @@ nearest_obstacle_shoreline_detector:
     # Zero derives height from camera TF above water_level_m.
     camera_height_m: 0.0
     reset_gap_s: 1.0
+    # Log elapsed wall time for every processed image pair.
+    log_timing: true
+    # Retain the last valid barrier through empty results and input gaps.
+    hold_last_boundary: true
+    # Empty paths use the config and weights installed with this ROS package.
     fastsam_weights: ''
     rwps_config: ''
     remove_boats: true
-    retina_masks: true
+    retina_masks: false
     water_mask_topic: /stixel_free_space/validated_water_mask
     camera_info_topic: /ma2/zed/camera_info
     lidar_topic: /lidar_aft/points
-    water_frame: ma2_water_plane
+    # shoreline.launch.py flips the existing MA2 water frame to Z up.
+    water_frame: ma2_water_plane_up
     # Stationary TF frame for motion compensation between sensor timestamps.
-    fixed_frame: map
+    fixed_frame: piren
     water_level_m: 0.0
     column_width_px: 10
     bottom_margin_px: 50

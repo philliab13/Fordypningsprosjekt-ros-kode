@@ -176,6 +176,34 @@ is labelled `uncompensated`. Only ego motion is compensated; moving target boats
 can still smear across scans. Use `scan_count:=1` or a tighter time window to
 inspect that effect. The combined mask covers all detected boats; points are
 shown as one set, without per-instance association or hidden-surface filtering.
+
+The BEV viewer also subscribes to
+`/nearest_obstacle_shoreline_detector/barrier_json` and draws shoreline segments
+in red on `/debug/footprint_bev`. Each endpoint is transformed from the JSON
+`frame_id` into the stationary `shoreline_fixed_frame` (default `piren`) at the
+measurement timestamp. The world coordinates are retained until a new valid
+measurement replaces them. For each displayed image, the viewer transforms the
+held endpoints into the camera frame at that image's acquisition timestamp,
+then projects them into the same local right/forward basis as the footprints.
+This compensates vessel translation and rotation while preserving segment gaps.
+The status shows the measurement age and labels the shoreline `ego-compensated`.
+
+Empty results and input timeouts do not clear the stored geometry. Missing TF
+for a new measurement keeps the previous world outline and retries the update
+on later frames. Missing current camera TF hides the overlay for that frame,
+retaining the world geometry for retry. There is no camera-relative fallback.
+The viewer caches 20 completed frames so late inference can redraw both its
+matching frame and the current frame. Measurements newer than the displayed
+image are not overlaid. This holds one shoreline estimate; it does not fuse
+measurements into a map.
+
+`shoreline_fixed_frame` must be a stationary TF frame connected to the shoreline
+source at measurement time and to the camera at display time. This parameter is
+independent of `fixed_frame`, which controls the existing LiDAR scan compensation.
+The other BEV overlays continue to work without the shoreline detector. Set
+`shoreline_topic` to another JSON topic or an empty string to disable the
+subscription. Run this viewer with `-p use_sim_time:=true` during bag playback.
+
 ## Frame review window
 
 Run the review window alongside the detector, BEV node and playback. It replaces

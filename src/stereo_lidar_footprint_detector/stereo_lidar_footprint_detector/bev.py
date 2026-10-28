@@ -112,7 +112,8 @@ def local_geometry(camera_xyz, obstacles, camera_to_water=None):
 
 
 def render_bev(points, rings, status, size_px=900, range_m=60.0,
-               point_colors=None, scan_legend=None, gnss_references=None):
+               point_colors=None, scan_legend=None, gnss_references=None,
+               shoreline_segments=None):
     """Equal metre scales, camera origin and filled outlines, like plot_bev."""
     image = np.full((size_px, size_px, 3), 250, dtype=np.uint8)
     legend = scan_legend or []
@@ -174,10 +175,21 @@ def render_bev(points, rings, status, size_px=900, range_m=60.0,
                        cv2.MARKER_CROSS, 20, 3, cv2.LINE_AA)
         text(reference['label'], (int(location[0]) + 12, int(location[1]) - 8),
              reference['color'])
+    for segment in (() if shoreline_segments is None else shoreline_segments):
+        segment = np.asarray(segment)
+        if segment.shape == (2, 2) and np.isfinite(segment).all():
+            endpoints = pixel(segment)
+            visible, start, end = cv2.clipLine(
+                (margin, margin, span + 1, span + 1),
+                tuple(endpoints[0]), tuple(endpoints[1]))
+            if visible:
+                cv2.line(image, start, end, (0, 0, 220), 3, cv2.LINE_AA)
     cv2.drawMarker(image, tuple(pixel([[0, 0]])[0]), (0, 150, 0),
                    cv2.MARKER_TRIANGLE_UP, 16, 2)
     text('LiDAR by scan | Footprints (orange) | Camera (green) | GNSS (+)', (15, 25))
     text(status, (15, 46), scale=0.4)
+    if shoreline_segments is not None and len(shoreline_segments):
+        text('Shoreline (red)', (size_px - 145, size_px - 35), (0, 0, 220))
     draw_scan_legend(image, legend)
     text('Right [m]', (size_px // 2 - 30, size_px - 15))
     text('Forward [m]', (margin, margin + 15))

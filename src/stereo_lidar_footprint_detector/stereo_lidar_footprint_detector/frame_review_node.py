@@ -168,7 +168,8 @@ def create_window(node):
                 return
             frame, state = node.buffer.view()
             panel = ('lidar', 'yolo', 'camera')[self.camera_choice.currentIndex()]
-            if frame is not None and self.displayed != (frame.timestamp_ns, panel):
+            if frame is not None and (self.displayed != (frame.timestamp_ns, panel)
+                                      or frame is not self.current_frame):
                 self.left.display(decode_panel(frame.images[panel]))
                 self.right.display(decode_panel(frame.images['bev']))
                 self.displayed = (frame.timestamp_ns, panel)
