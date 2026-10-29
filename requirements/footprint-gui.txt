@@ -1,0 +1,3 @@
+# Optional frame_review_node GUI; omit if using system python3-pyqt5 instead.
+-r footprint-pip-pinned.txt
+PyQt5==5.15.10

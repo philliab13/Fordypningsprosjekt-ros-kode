@@ -1,8 +1,10 @@
-# Reuse the ROS-compatible footprint environment; choose PyTorch for your CUDA setup.
-numpy
-scipy
-opencv-python
-torch
-torchvision
-ultralytics
-# The optional frame-review GUI uses system python3-pyqt5 (see package.xml).
+# Runtime dependencies for footprint detection, BEV and shared stixel helpers.
+# Python 3.12, Linux x86_64. ROS packages are installed separately.
+numpy==1.26.4
+scipy==1.11.4
+# OpenCV 5 requires NumPy >=2; use 4.11 with the observed NumPy 1.26.
+opencv-python==4.11.0.86
+# Ultralytics uses torch/torchvision internally; keep the tested pair pinned.
+torch==2.14.1
+torchvision==0.29.1
+ultralytics==8.4.176

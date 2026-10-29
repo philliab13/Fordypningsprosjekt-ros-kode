@@ -1,0 +1,5 @@
+# Used by setup.py and python -m colcon build in either environment.
+setuptools==78.1.0
+colcon-common-extensions==0.3.0
+colcon-core==0.21.3
+colcon-ros==0.5.0

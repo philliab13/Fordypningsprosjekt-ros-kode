@@ -1,19 +1,14 @@
-# Canonical Python runtime for stixel_free_space on Ubuntu 24.04 / ROS 2 Jazzy.
-# Create a clean Python 3.12 venv WITHOUT --system-site-packages.
-# ROS Python modules are exposed separately from /opt/ros/jazzy.
-# pyzed is provided by the installed ZED SDK and linked into the venv by
-# scripts/setup_stixel_env.sh; it is not distributed through PyPI.
-
+# Runtime dependencies for the ROS stixel adapter and its external free_space pipeline.
+# Python 3.12, Linux x86_64. ROS and SDK pyzed are installed separately.
 --extra-index-url https://download.pytorch.org/whl/cu130
 
-setuptools==78.1.0
 numpy==2.2.6
 scipy==1.13.1
 opencv-python==4.11.0.86
-matplotlib==3.11.2
 numba==0.61.2
 open3d==0.20.0
+PyYAML==6.0.3
+# Keep the inference stack paired, including Ultralytics' torchvision dependency.
 torch==2.14.1+cu130
 torchvision==0.29.1+cu130
 ultralytics==8.4.174
-PyYAML==6.0.3

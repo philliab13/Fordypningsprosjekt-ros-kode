@@ -36,7 +36,7 @@ rm -rf "$VENV"
 "$PYTHON_BIN" -m venv "$VENV"
 
 "$VENV/bin/python" -m pip install --upgrade pip
-"$VENV/bin/python" -m pip install -r "$REQ"
+"$VENV/bin/python" -m pip install -r "$REQ" -r "$ROOT/requirements/build-pinned.txt"
 
 # ZED SDK installs pyzed outside the venv. Link only the pyzed package, never the
 # whole user site-packages directory, so its NumPy and other packages cannot leak in.
