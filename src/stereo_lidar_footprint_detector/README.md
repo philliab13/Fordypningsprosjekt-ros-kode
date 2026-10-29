@@ -23,7 +23,22 @@ and JSON helpers live in `stereo_lidar_footprint_detector/detection`. The node
 no longer imports the separate footprint repository or modifies `sys.path`.
 Remove `-p repo_path:=...` from old commands; that parameter is no longer used.
 See `DETECTION_SOURCES.md` for the source revision. The `stixel_free_space`
-package in this workspace still supplies shared ROS helpers and MA2 calibration.
+package in this workspace still supplies shared ROS helpers. LiDAR mounting
+calibration comes from TF, using the camera and point-cloud message frame IDs.
+
+Both `footprint_node` and `bev_node` require a connected LiDAR-to-camera TF chain
+whenever a LiDAR scan is selected. Missing TF rejects that frame; there is no
+MA2 calibration fallback. `require_lidar=false` permits an absent scan, not a
+selected scan with missing calibration. Publish the measured vessel-to-camera
+and vessel-to-LiDAR mounting transforms, keeping the sensor drivers' internal
+optical/LiDAR transforms. MA2 playback also needs its recorded or calibrated
+LiDAR mounting TF; the camera-only `ma2.launch.py` is insufficient by itself.
+
+Both nodes accept `fixed_frame` (default empty). Without it, the mounting chain
+is evaluated at the image timestamp and scan-to-image motion is ignored. With a
+stationary frame such as `piren`, TF transforms points from the LiDAR acquisition
+time into the camera at image acquisition time. Set the same value on both nodes
+for consistent motion compensation.
 
 For example, after building with your chosen footprint environment and sourcing
 the workspace, run:
@@ -204,10 +219,10 @@ ros2 run stereo_lidar_footprint_detector bev_node --ros-args -p gnss_enabled:=fa
 The output retains the camera source timestamp, so saving `/debug/footprint_bev`
 and the matching `/debug/bev_lidar_overlay` captures the same detector frame.
 
-The node uses the same MA2 LiDAR-to-camera calibration as the detector. With
-`fixed_frame` set, it additionally uses time-dependent camera TF to transform
-each scan to the image time. Missing required TF rejects the frame after a short
-retry window. Without this setting, scans use static calibration and the image
+The node uses the same TF lookup as the detector. With
+`fixed_frame` set, it transforms each scan from its LiDAR frame and acquisition
+time into the camera at image time. Missing required TF rejects the frame after a
+short retry window. Without this setting, scans use image-time mounting TF and the image
 is labelled `uncompensated`. Only ego motion is compensated; moving target boats
 can still smear across scans. Use `scan_count:=1` or a tighter time window to
 inspect that effect. The combined mask covers all detected boats; points are

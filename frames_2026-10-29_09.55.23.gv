@@ -1,0 +1,9 @@
+digraph G {
+"piren" -> "vessel_center"[label=" Broadcaster: default_authority\nAverage rate: 20.203\nBuffer length: 5.049\nMost recent transform: 1789120843.088987\nOldest transform: 1789120838.040318\n"];
+"os_sensor" -> "os_lidar"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+"os_sensor" -> "os_imu"[label=" Broadcaster: default_authority\nAverage rate: 10000.0\nBuffer length: 0.0\nMost recent transform: 0.0\nOldest transform: 0.0\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1793264123.9172602"[ shape=plaintext ] ;
+}->"os_sensor";
+}

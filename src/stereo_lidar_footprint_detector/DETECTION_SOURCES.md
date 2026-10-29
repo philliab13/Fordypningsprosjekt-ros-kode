@@ -14,8 +14,9 @@ including the existing boat-only YOLO class selection, was preserved.
 Offline SVO readers (`zed.py`), dataset loaders and plotting tools are not needed
 by this ROS node, which consumes registered image/depth messages.
 The source checkout is recorded for provenance and is not read at runtime or
-build time. ROS helpers and MA2 calibration still come from `stixel_free_space`,
-which is a package inside the same `vrx_ws` repository.
+build time. ROS helpers still come from `stixel_free_space`, which is a package
+inside the same `vrx_ws` repository. The ROS adapters obtain LiDAR-to-camera
+calibration from TF rather than importing the MA2 calibration matrix.
 
 The existing workspace `yolo26n-seg.pt` was copied to `weights/yolo26n-seg.pt` as a
 regular local file. Checkpoints in that directory are ignored by Git and are

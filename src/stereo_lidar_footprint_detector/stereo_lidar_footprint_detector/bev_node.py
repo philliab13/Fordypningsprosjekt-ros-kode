@@ -16,13 +16,13 @@ from sensor_msgs.msg import CameraInfo, Image, PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import String
 from stixel_free_space.core import project_lidar, stamp_ns, transform_matrix
-from stixel_free_space.ma2_calibration import H_POINTS_ZED_FROM_LIDAR
 from tf2_ros import Buffer, TransformListener
 
 from .bev import (closest_scans, local_geometry, mask_selection, render_bev,
                   render_lidar_overlay, scan_color)
 from .images import image_array
 from .gnss import DEFAULT_FILES, PIREN_LLA, interpolate_pose, load_track
+from .transforms import camera_from_lidar
 
 
 class BevNode(Node):
@@ -112,7 +112,7 @@ class BevNode(Node):
         self.timer = self.create_timer(0.05, self.flush)
         if not self.p['fixed_frame']:
             self.get_logger().info(
-                'BEV uses calibrated MA2 LiDAR extrinsics without ego-motion '
+                'BEV uses TF LiDAR extrinsics at image time without ego-motion '
                 'compensation. Set fixed_frame to an available odom/map TF frame '
                 'to align scans at the image timestamp.')
 
@@ -313,16 +313,9 @@ class BevNode(Node):
         for index, (scan_stamp, cloud) in enumerate(selected):
             points = point_cloud2.read_points_numpy(
                 cloud, field_names=('x', 'y', 'z'), skip_nans=True)
-            camera_from_lidar = H_POINTS_ZED_FROM_LIDAR
-            if self.p['fixed_frame']:
-                # The extrinsics are the same calibrated MA2 transform used by
-                # the detector; TF supplies camera motion between the two times.
-                motion = transform_matrix(self.tf.lookup_transform_full(
-                    optical, Time.from_msg(mask_msg.header.stamp),
-                    optical, Time.from_msg(cloud.header.stamp), self.p['fixed_frame'],
-                    timeout=Duration(seconds=0)).transform)
-                camera_from_lidar = motion @ camera_from_lidar
-            uv, xyz = project_lidar(points, camera_from_lidar, k, mask.shape)
+            extrinsics = camera_from_lidar(
+                self.tf, mask_msg.header, cloud.header, self.p['fixed_frame'])
+            uv, xyz = project_lidar(points, extrinsics, k, mask.shape)
             boat = mask_selection(uv, xyz, mask)
             color = scan_color(index)
             boats.append(xyz[boat])

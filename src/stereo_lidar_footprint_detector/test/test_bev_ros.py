@@ -10,6 +10,7 @@ pytest.importorskip('rclpy')
 from sensor_msgs.msg import CameraInfo, Image
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
+from tf2_ros import Buffer
 
 from stereo_lidar_footprint_detector import bev_node
 
@@ -37,6 +38,7 @@ def test_real_cloud_mask_and_footprint_messages(monkeypatch, with_scans, with_sh
         {'geometry': {'coordinates': [[[-1, 4], [1, 4], [1, 6], [-1, 4]]]}}]}
     output, geometry, rgb_output, overlays = [], [], [], []
     harness = SimpleNamespace(
+        tf=Buffer(),
         clouds=([(1_000_000_000, cloud), (1_050_000_000, later_cloud)]
                 if with_scans else []),
         p=dict(scan_count=3, max_skew_s=0.2, fixed_frame='', shoreline_fixed_frame='piren', size_px=400, range_m=20.),
@@ -49,7 +51,6 @@ def test_real_cloud_mask_and_footprint_messages(monkeypatch, with_scans, with_sh
         camera_from_water[:3, 3] = [10., 20., 30.]
         harness.lookup = lambda target, source, stamp: (
             np.eye(4) if target == 'piren' else camera_from_water)
-    monkeypatch.setattr(bev_node, 'H_POINTS_ZED_FROM_LIDAR', np.eye(4))
 
     def render(points, rings, status, size, span, **kwargs):
         geometry.append((points, rings, status, kwargs))

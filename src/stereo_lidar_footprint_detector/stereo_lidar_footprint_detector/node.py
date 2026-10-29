@@ -22,11 +22,9 @@ from stixel_free_space.core import (
     stamp_ns,
     transform_matrix,
 )
-from stixel_free_space.ma2_calibration import (
-    H_POINTS_ZED_FROM_LIDAR,
-)
 from tf2_ros import Buffer, TransformListener
 from visualization_msgs.msg import MarkerArray
+from .transforms import camera_from_lidar
 
 from .backend import PipelineBackend
 from .images import image_array
@@ -44,15 +42,16 @@ class FootprintNode(Node):
             baseline_m=0.0,
             weights="",
             device="",
-            left_topic="/ma2/zed/left/image", #Subscribe from SVO_player
-            depth_topic="/ma2/zed/depth", #Subscribe from SVO_player
-            camera_info_topic="/ma2/zed/camera_info", #Subscribe from SVO_player
-            lidar_topic="/lidar_aft/points", #Subscribe from rosbag
+            left_topic="/zed/zed_node/rgb/color/rect/image", #"/ma2/zed/left/image", #Subscribe from SVO_player
+            depth_topic="/zed/zed_node/depth/depth_registered", #"/ma2/zed/depth", #Subscribe from SVO_player
+            camera_info_topic="/zed/zed_node/rgb/color/rect/camera_info", #/ma2/zed/camera_info", #Subscribe from SVO_player
+            lidar_topic="/front_lidar/ouster/points",# or "/back_lidar/ouster/points" Sim ->  #"/lidar_aft/points", #Subscribe from rosbag
             output_topic="/obstacles/json", #Output obstacles here
             water_frame="ma2_water_plane", #Has a publisher publishing these transforms
             max_stereo_depth_m=20.0,
             lidar_max_skew_s=0.5,
             require_lidar=False,
+            fixed_frame="", # Stationary TF frame for scan-to-image motion compensation
         )
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -178,11 +177,12 @@ class FootprintNode(Node):
                     cloud, field_names=("x", "y", "z"), skip_nans=True
                 )
 
-                # Same calibrated LiDAR-to-ZED transform
-                # as the original MA2 stixel pipeline.
                 uv, xyz = project_lidar(
                     points,
-                    H_POINTS_ZED_FROM_LIDAR,
+                    camera_from_lidar(
+                        self.tf_buffer, image.header, cloud.header,
+                        self.p["fixed_frame"],
+                    ),
                     k,
                     left.shape[:2],
                 )

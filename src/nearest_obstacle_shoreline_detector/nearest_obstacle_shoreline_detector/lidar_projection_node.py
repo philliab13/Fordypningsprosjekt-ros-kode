@@ -21,7 +21,8 @@ from .lidar_projection import nearest_boundary, project_to_water
 class LidarProjectionNode(Node):
     def __init__(self):
         super().__init__('lidar_water_projection')
-        defaults = dict(lidar_topic='/lidar_aft/points', water_frame='ma2_water_plane_up',
+        defaults = dict(lidar_topic="/front_lidar/ouster/points",# or "/back_lidar/ouster/points" Sim ->  #"/lidar_aft/points", #Subscribe from rosbag
+                        water_frame='ma2_water_plane_up',
                         water_level_m=0.0, min_height_m=0.0, max_height_m=2.0,
                         sector_width_deg=2.0, min_sector_points=2, range_cluster_m=1.0,
                         min_range_m=1.0, max_range_m=100.0, max_segment_m=3.0)
