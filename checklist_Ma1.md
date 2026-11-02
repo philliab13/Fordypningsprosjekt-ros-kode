@@ -341,3 +341,9 @@ recording explicitly before shutting down the ZED wrapper:
 ```bash
 ros2 service call /zed/zed_node/stop_svo_rec std_srvs/srv/Trigger
 ```
+
+## Clone recursive
+
+```bash
+git clone --recurse-submodules <repository-url>
+```
