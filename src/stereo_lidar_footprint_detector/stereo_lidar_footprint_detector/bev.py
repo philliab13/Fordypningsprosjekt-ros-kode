@@ -172,7 +172,8 @@ def render_bev(points, rings, status, size_px=900, range_m=60.0,
             continue
         location = pixel([xy])[0]
         cv2.drawMarker(image, tuple(location), reference['color'],
-                       cv2.MARKER_CROSS, 20, 3, cv2.LINE_AA)
+                       cv2.MARKER_DIAMOND if reference.get('ego') else cv2.MARKER_CROSS,
+                       20, 3, cv2.LINE_AA)
         text(reference['label'], (int(location[0]) + 12, int(location[1]) - 8),
              reference['color'])
     for segment in (() if shoreline_segments is None else shoreline_segments):
@@ -190,6 +191,16 @@ def render_bev(points, rings, status, size_px=900, range_m=60.0,
     text(status, (15, 46), scale=0.4)
     if shoreline_segments is not None and len(shoreline_segments):
         text('Shoreline (red)', (size_px - 145, size_px - 35), (0, 0, 220))
+    for reference in gnss_references or []:
+        if reference.get('ego'):
+            lat, lon = reference['position_lla'][:2]
+            text(f'Ego MA2 (navigation pose): {lat:.7f}, {lon:.7f} (lat, lon)',
+                 (15, size_px - 55), reference['color'], scale=0.4)
+            lat, lon = reference['camera_lla'][:2]
+            heading = reference['camera_heading_deg']
+            direction = f'{heading:.1f} deg true' if heading is not None else 'undefined'
+            text(f'BEV camera origin: {lat:.7f}, {lon:.7f} | Forward: {direction}',
+                 (15, size_px - 35), reference['color'], scale=0.35)
     draw_scan_legend(image, legend)
     text('Right [m]', (size_px // 2 - 30, size_px - 15))
     text('Forward [m]', (margin, margin + 15))

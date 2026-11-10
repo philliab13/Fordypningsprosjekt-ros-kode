@@ -44,6 +44,35 @@ def lla_to_ned(lla, origin=PIREN_LLA):
     return (ecef(lla) - ecef(origin)) @ rotation.T
 
 
+def ned_to_lla(ned, origin=PIREN_LLA):
+    """Invert the Piren tangent-frame conversion; return lat/lon degrees and metres."""
+    ned = np.asarray(ned, dtype=float)
+    origin = np.asarray(origin, dtype=float)
+    if ned.shape[-1:] != (3,) or origin.shape != (3,) or not (
+            np.isfinite(ned).all() and np.isfinite(origin).all()):
+        raise ValueError('Expected finite NED positions and a latitude/longitude/height origin')
+    a, e2 = 6378137.0, 6.6943799901413165e-3
+    lat, lon = np.deg2rad(origin[:2])
+    rotation = np.array([
+        [-np.sin(lat)*np.cos(lon), -np.sin(lat)*np.sin(lon), np.cos(lat)],
+        [-np.sin(lon), np.cos(lon), 0],
+        [-np.cos(lat)*np.cos(lon), -np.cos(lat)*np.sin(lon), -np.sin(lat)]])
+    radius = a / np.sqrt(1 - e2 * np.sin(lat)**2)
+    origin_ecef = np.array([(radius + origin[2]) * np.cos(lat) * np.cos(lon),
+                            (radius + origin[2]) * np.cos(lat) * np.sin(lon),
+                            (radius * (1 - e2) + origin[2]) * np.sin(lat)])
+    xyz = ned @ rotation + origin_ecef
+    x, y, z = np.moveaxis(xyz, -1, 0)
+    horizontal = np.hypot(x, y)
+    lat = np.arctan2(z, horizontal * (1 - e2))
+    for _ in range(8):
+        radius = a / np.sqrt(1 - e2 * np.sin(lat)**2)
+        lat = np.arctan2(z + e2 * radius * np.sin(lat), horizontal)
+    height = (horizontal * np.cos(lat) + z * np.sin(lat)
+              - a * np.sqrt(1 - e2 * np.sin(lat)**2))
+    return np.stack((np.rad2deg(lat), np.rad2deg(np.arctan2(y, x)), height), axis=-1)
+
+
 def utc_ns(value):
     dt = datetime.fromisoformat(value.strip().replace('Z', '+00:00'))
     if dt.tzinfo is None:

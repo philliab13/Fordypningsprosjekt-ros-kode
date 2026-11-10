@@ -149,6 +149,19 @@ positions alongside the LiDAR and footprints. Receiver names are retained becaus
 some receivers moved between boats, obstacles and the quay during data gathering.
 These are horizontal antenna reference positions, not hull centers or outlines.
 
+The blue diamond labeled `Ego MA2` marks the ego body origin from the
+timestamp-matched `/navigation/pose`, including its offset from the camera.
+The footer shows WGS84 latitude/longitude (in that order, decimal degrees),
+computed from the navigation pose and configured `piren_lla` origin. It also
+shows the camera's latitude/longitude and optical forward heading clockwise
+from true north, for manually placing the camera-centered BEV over a map image.
+Use the camera coordinates to anchor the BEV's green camera marker; the ego
+body origin is offset from that marker by the body-to-camera extrinsics. This
+marker also works when no recorded receiver files are available. It uses the
+same pose interpolation and body-to-camera TF as the reference overlays and is
+omitted if pose/TF is unavailable or `gnss_enabled` is false. The frame viewer
+and saved BEV images include this overlay automatically.
+
 Paths below are relative to
 `~/Documents/Data_For_Stixel_based_Free_space_estimation/2023-07-11_Multi_ZED_Summer`:
 

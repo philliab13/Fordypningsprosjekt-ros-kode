@@ -12,6 +12,7 @@ from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
 
 from stereo_lidar_footprint_detector import bev_node
+from stereo_lidar_footprint_detector.gnss import lla_to_ned
 
 
 @pytest.mark.parametrize('with_scans', [True, False])
@@ -39,7 +40,7 @@ def test_real_cloud_mask_and_footprint_messages(monkeypatch, with_scans, with_sh
     harness = SimpleNamespace(
         clouds=([(1_000_000_000, cloud), (1_050_000_000, later_cloud)]
                 if with_scans else []),
-        p=dict(scan_count=3, max_skew_s=0.2, fixed_frame='', shoreline_fixed_frame='piren', size_px=400, range_m=20.),
+        p=dict(scan_count=3, max_skew_s=0.2, fixed_frame='', shoreline_fixed_frame='piren', size_px=400, range_m=20., gnss_enabled=False),
         publisher=SimpleNamespace(publish=output.append),
         rgb_publisher=SimpleNamespace(publish=rgb_output.append))
     if with_shoreline:
@@ -138,10 +139,43 @@ def test_gnss_camera_offset_axes_and_missing_pose(axes):
     np.testing.assert_allclose(references[0]['xy'], [3, 10], atol=1e-10)
     assert 'GNSS 1/1' in status
     assert references[0]['label'] == 'test receiver'
+    assert references[1]['label'] == 'Ego MA2'
+    assert references[1]['ego'] is True
+    np.testing.assert_allclose(references[1]['xy'], [-1, -2], atol=1e-10)
+    np.testing.assert_allclose(references[1]['position_ned'], [0, 0, 0])
     references, status = bev_node.BevNode.gnss_overlay(
         harness, 2_000_000_000, header, body_from_camera)
     assert references == []
     assert 'no matching pose' in status
+
+
+@pytest.mark.parametrize('axes', ['ned', 'enu'])
+def test_ego_gnss_without_recorded_tracks(axes):
+    # Camera is 2 m ahead and 1 m right of the body origin. The vessel's
+    # geographic position must not become an offset in this camera-local BEV.
+    body_from_camera = np.array([[0., 0., 1., 2.], [1., 0., 0., 1.],
+                                 [0., 1., 0., -1.], [0., 0., 0., 1.]])
+    position = [100., 200., 3.] if axes == 'ned' else [200., 100., -3.]
+    harness = SimpleNamespace(
+        gnss_tracks=[], poses=[(1_000_000_000, np.array([*position, 0, 0, 0, 1]))],
+        p=dict(gnss_enabled=True, pose_max_gap_s=.5, gnss_pose_axes=axes,
+               gnss_body_frame='body', gnss_time_offset_s=0., piren_lla=[63., 10., 40.]),
+        lookup=lambda *args: body_from_camera)
+    references, status = bev_node.BevNode.gnss_overlay(
+        harness, 1_000_000_000, Header(frame_id='camera'), body_from_camera)
+    assert len(references) == 1
+    np.testing.assert_allclose(references[0]['xy'], [-1, -2], atol=1e-10)
+    np.testing.assert_allclose(references[0]['position_ned'], [100, 200, 3])
+    origin = harness.p['piren_lla']
+    np.testing.assert_allclose(lla_to_ned(references[0]['position_lla'], origin),
+                               [100, 200, 3], atol=1e-6)
+    camera_ned = [102, 201, 2] if axes == 'ned' else [101, 202, 4]
+    np.testing.assert_allclose(lla_to_ned(references[0]['camera_lla'], origin),
+                               camera_ned, atol=1e-6)
+    assert references[0]['camera_heading_deg'] == pytest.approx(0. if axes == 'ned' else 90.)
+    assert '+ ego' in status
+    harness.p['gnss_enabled'] = False
+    assert bev_node.BevNode.gnss_overlay(harness, 1_000_000_000, None, None) == ([], '')
 
 
 def test_late_shoreline_redraws_current_frame_and_empty_retains():

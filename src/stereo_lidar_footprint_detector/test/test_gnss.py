@@ -5,7 +5,7 @@ import pytest
 from scipy.spatial.transform import Rotation
 
 from stereo_lidar_footprint_detector.gnss import (
-    PIREN_LLA, Track, interpolate_pose, lla_to_ned, load_track, utc_ns,
+    PIREN_LLA, Track, interpolate_pose, lla_to_ned, load_track, ned_to_lla, utc_ns,
 )
 
 
@@ -17,6 +17,15 @@ def test_piren_origin_and_axis_directions():
     assert 49 < east[1] < 51
     np.testing.assert_allclose(lla_to_ned([*PIREN_LLA[:2], PIREN_LLA[2] + 1]),
                                [0, 0, -1], atol=1e-8)
+
+
+@pytest.mark.parametrize('origin', [PIREN_LLA, [0., 0., 0.], [-33., 151., 100.]])
+def test_geographic_inverse_preserves_position_and_altitude(origin):
+    np.testing.assert_allclose(ned_to_lla([0., 0., 0.], origin), origin, atol=1e-8)
+    positions = np.array([[0., 0., 0.], [100., 200., 3.], [-500., 300., -20.]])
+    lla = ned_to_lla(positions, origin)
+    np.testing.assert_allclose(lla_to_ned(lla, origin), positions, atol=1e-6)
+    assert lla[1, 0] > origin[0] and lla[1, 1] > origin[1]
 
 
 def test_spatial_dual_kml_and_untimed_pos_fallback(tmp_path):

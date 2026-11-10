@@ -22,7 +22,7 @@ from tf2_ros import Buffer, TransformListener
 from .bev import (closest_scans, local_geometry, mask_selection, render_bev,
                   render_lidar_overlay, scan_color)
 from .images import image_array
-from .gnss import DEFAULT_FILES, PIREN_LLA, interpolate_pose, load_track
+from .gnss import DEFAULT_FILES, PIREN_LLA, interpolate_pose, load_track, ned_to_lla
 
 
 class BevNode(Node):
@@ -128,7 +128,7 @@ class BevNode(Node):
     def gnss_overlay(self, timestamp, header, camera_to_water):
         """Put horizontal GNSS positions through the existing BEV geometry."""
         tracks = getattr(self, 'gnss_tracks', [])
-        if not tracks:
+        if not self.p.get('gnss_enabled', True):
             return [], ''
         pose = interpolate_pose(self.poses, timestamp, self.p['pose_max_gap_s'])
         if pose is None:
@@ -158,7 +158,21 @@ class BevNode(Node):
             camera = camera_from_body[:3, :3] @ body + camera_from_body[:3, 3]
             xy, _ = local_geometry([camera], {'features': []}, camera_to_water)
             references.append(dict(label=label, color=color, xy=xy[0]))
-        return references, f' | GNSS {len(references)}/{len(tracks)}'
+        count = len(references)
+        # The navigation pose locates the ego body origin in Piren. In body
+        # coordinates this is zero, but it is offset from the camera origin.
+        ego_xy, _ = local_geometry(
+            [camera_from_body[:3, 3]], {'features': []}, camera_to_water)
+        camera_ned = rotation @ body_from_camera[:3, 3] + position
+        forward_ned = rotation @ body_from_camera[:3, 2]
+        heading = (float(np.degrees(np.arctan2(forward_ned[1], forward_ned[0])) % 360)
+                   if np.linalg.norm(forward_ned[:2]) > 1e-8 else None)
+        references.append(dict(label='Ego MA2', color=(200, 100, 0), xy=ego_xy[0],
+                               ego=True, position_ned=position.copy(),
+                               position_lla=ned_to_lla(position, self.p['piren_lla']),
+                               camera_lla=ned_to_lla(camera_ned, self.p['piren_lla']),
+                               camera_heading_deg=heading))
+        return references, f' | GNSS {count}/{len(tracks)} + ego'
 
     def receive_footprints(self, msg):
         try:
